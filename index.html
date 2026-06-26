@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tradeback Pro - ELT Group</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-block">
+      <div class="logo-mark">ELT</div>
+      <div>
+        <h1>Tradeback Pro</h1>
+        <p>ELT Group (PTY) Ltd · Vehicle Trade-Back Inspection</p>
+      </div>
+    </div>
+    <button onclick="resetInspection()" class="ghost">New Inspection</button>
+  </header>
+
+  <main>
+    <section class="card intro">
+      <h2>Inspection Details</h2>
+      <div class="grid">
+        <label>Inspection No.<input id="inspectionNo" readonly /></label>
+        <label>Date<input id="inspectionDate" type="date" /></label>
+        <label>Inspector<input id="inspector" value="Johan Du Plessis" /></label>
+        <label>Inspector Email<input id="inspectorEmail" value="johan.d@eltgroup.co.za" /></label>
+        <label>Customer / Seller<input id="customer" /></label>
+        <label>Vehicle Make<input id="make" /></label>
+        <label>Vehicle Model<input id="model" /></label>
+        <label>Registration No.<input id="registration" /></label>
+        <label>VIN<input id="vin" /></label>
+        <label>Engine No.<input id="engine" /></label>
+        <label>Odometer<input id="odometer" type="number" /></label>
+        <label>Branch / Location<input id="location" /></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Inspection Checklist</h2>
+      <p class="hint">Mark each line item. If an item is marked Failed, a photo upload/camera capture is required.</p>
+      <div id="checklist"></div>
+    </section>
+
+    <section class="card">
+      <h2>Comments and Conclusions</h2>
+      <label>Comments<textarea id="comments" rows="5" placeholder="Add inspection comments..."></textarea></label>
+      <label>Conclusion / Recommendation<textarea id="conclusion" rows="5" placeholder="Add final conclusion..."></textarea></label>
+    </section>
+
+    <section class="card">
+      <h2>Digital Signature</h2>
+      <canvas id="signaturePad" width="780" height="220"></canvas>
+      <div class="actions">
+        <button onclick="clearSignature()" class="ghost">Clear Signature</button>
+      </div>
+    </section>
+
+    <section class="actions sticky-actions">
+      <button onclick="saveDraft()">Save Draft</button>
+      <button onclick="loadDraft()" class="ghost">Load Draft</button>
+      <button onclick="generateReport()" class="primary">Download PDF Report</button>
+    </section>
+
+    <section id="report" class="report"></section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
