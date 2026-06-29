@@ -7,65 +7,167 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
+
 <body>
-  <header class="topbar">
-    <div class="brand-block">
-      <div class="logo-mark">ELT</div>
-      <div>
-        <h1>Tradeback Pro</h1>
-        <p>ELT Group (PTY) Ltd · Vehicle Trade-Back Inspection</p>
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="logo-mark">ELT</div>
+        <div>
+          <h1>Tradeback Pro</h1>
+          <p>Vehicle Inspection System</p>
+        </div>
       </div>
-    </div>
-    <button onclick="resetInspection()" class="ghost">New Inspection</button>
-  </header>
 
-  <main>
-    <section class="card intro">
-      <h2>Inspection Details</h2>
-      <div class="grid">
-        <label>Inspection No.<input id="inspectionNo" readonly /></label>
-        <label>Date<input id="inspectionDate" type="date" /></label>
-        <label>Inspector<input id="inspector" value="Johan Du Plessis" /></label>
-        <label>Inspector Email<input id="inspectorEmail" value="johan.d@eltgroup.co.za" /></label>
-        <label>Customer / Seller<input id="customer" /></label>
-        <label>Vehicle Make<input id="make" /></label>
-        <label>Vehicle Model<input id="model" /></label>
-        <label>Registration No.<input id="registration" /></label>
-        <label>VIN<input id="vin" /></label>
-        <label>Engine No.<input id="engine" /></label>
-        <label>Odometer<input id="odometer" type="number" /></label>
-        <label>Branch / Location<input id="location" /></label>
+      <nav class="side-nav">
+        <a href="#dashboard">Dashboard</a>
+        <a href="#inspectionDetails">Vehicle Details</a>
+        <a href="#checklistSection">Inspection</a>
+        <a href="#scoreSection">Score</a>
+        <a href="#commentsSection">Summary</a>
+        <a href="#signatureSection">Signature</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <strong>ELT Group (PTY) Ltd</strong>
+        <span>v1.0 Sprint 1</span>
       </div>
-    </section>
+    </aside>
 
-    <section class="card">
-      <h2>Inspection Checklist</h2>
-      <p class="hint">Mark each line item. If an item is marked Failed, a photo upload/camera capture is required.</p>
-      <div id="checklist"></div>
-    </section>
+    <main class="main-content">
 
-    <section class="card">
-      <h2>Comments and Conclusions</h2>
-      <label>Comments<textarea id="comments" rows="5" placeholder="Add inspection comments..."></textarea></label>
-      <label>Conclusion / Recommendation<textarea id="conclusion" rows="5" placeholder="Add final conclusion..."></textarea></label>
-    </section>
+      <header class="top-header">
+        <div>
+          <h1>Tradeback Pro</h1>
+          <p>Professional Trade-Back Vehicle Inspection Platform</p>
+        </div>
 
-    <section class="card">
-      <h2>Digital Signature</h2>
-      <canvas id="signaturePad" width="780" height="220"></canvas>
-      <div class="actions">
-        <button onclick="clearSignature()" class="ghost">Clear Signature</button>
-      </div>
-    </section>
+        <div class="top-actions">
+          <button onclick="resetInspection()" class="ghost">New Inspection</button>
+          <button onclick="saveDraft()">Save Draft</button>
+          <button onclick="generateReport()" class="primary">Download Report</button>
+        </div>
+      </header>
 
-    <section class="actions sticky-actions">
-      <button onclick="saveDraft()">Save Draft</button>
-      <button onclick="loadDraft()" class="ghost">Load Draft</button>
-      <button onclick="generateReport()" class="primary">Download PDF Report</button>
-    </section>
+      <section id="dashboard" class="dashboard">
+        <div class="dashboard-card hero-card">
+          <h2>Inspection Dashboard</h2>
+          <p>Manage vehicle trade-back inspections, scoring and reports.</p>
 
-    <section id="report" class="report"></section>
-  </main>
+          <div class="hero-actions">
+            <a href="#inspectionDetails" class="button-link primary">Start Inspection</a>
+            <button onclick="loadDraft()" class="ghost">Continue Draft</button>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <span id="dashScore">0%</span>
+          <p>Current Score</p>
+        </div>
+
+        <div class="stat-card">
+          <span id="dashGrade">-</span>
+          <p>Vehicle Grade</p>
+        </div>
+
+        <div class="stat-card">
+          <span id="dashFails">0</span>
+          <p>Failed Items</p>
+        </div>
+      </section>
+
+      <section class="progress-panel">
+        <div>
+          <strong>Inspection Progress</strong>
+          <p id="progressText">0% completed</p>
+        </div>
+        <div class="progress-bar">
+          <div id="progressFill"></div>
+        </div>
+      </section>
+
+      <section id="inspectionDetails" class="card intro">
+        <h2>Inspection Details</h2>
+
+        <div class="grid">
+          <label>Inspection No.<input id="inspectionNo" readonly /></label>
+          <label>Date<input id="inspectionDate" type="date" /></label>
+          <label>Inspector<input id="inspector" value="Johan Du Plessis" /></label>
+          <label>Inspector Email<input id="inspectorEmail" value="johan.d@eltgroup.co.za" /></label>
+          <label>Customer / Seller<input id="customer" /></label>
+          <label>Vehicle Make<input id="make" /></label>
+          <label>Vehicle Model<input id="model" /></label>
+          <label>Registration No.<input id="registration" /></label>
+          <label>VIN<input id="vin" /></label>
+          <label>Engine No.<input id="engine" /></label>
+          <label>Odometer<input id="odometer" type="number" /></label>
+          <label>Branch / Location<input id="location" /></label>
+        </div>
+      </section>
+
+      <section id="checklistSection" class="card">
+        <h2>Inspection Checklist</h2>
+        <p class="hint">Mark each item. Failed items require photo evidence before the report can be downloaded.</p>
+        <div id="checklist"></div>
+      </section>
+
+      <section id="scoreSection" class="score-card">
+        <h2>Inspection Score</h2>
+
+        <div class="score-main">
+          <div>
+            <span id="scorePercentage">0%</span>
+            <small>Overall Score</small>
+          </div>
+
+          <div>
+            <span id="scoreGrade">Not Rated</span>
+            <small>Vehicle Grade</small>
+          </div>
+
+          <div>
+            <span id="scoreCondition">Incomplete</span>
+            <small>Condition</small>
+          </div>
+        </div>
+
+        <div class="score-counts">
+          <p>Pass: <strong id="passCount">0</strong></p>
+          <p>Advisory: <strong id="advisoryCount">0</strong></p>
+          <p>Fail: <strong id="failCount">0</strong></p>
+        </div>
+
+        <p class="recommendation" id="scoreRecommendation">
+          Complete the inspection to generate a result.
+        </p>
+      </section>
+
+      <section id="commentsSection" class="card">
+        <h2>Comments and Conclusions</h2>
+        <label>Comments<textarea id="comments" rows="5" placeholder="Add inspection comments..."></textarea></label>
+        <label>Conclusion / Recommendation<textarea id="conclusion" rows="5" placeholder="Add final conclusion..."></textarea></label>
+      </section>
+
+      <section id="signatureSection" class="card">
+        <h2>Digital Signature</h2>
+        <canvas id="signaturePad" width="780" height="220"></canvas>
+
+        <div class="actions">
+          <button onclick="clearSignature()" class="ghost">Clear Signature</button>
+        </div>
+      </section>
+
+      <section class="actions sticky-actions">
+        <button onclick="saveDraft()">Save Draft</button>
+        <button onclick="loadDraft()" class="ghost">Load Draft</button>
+        <button onclick="generateReport()" class="primary">Download PDF Report</button>
+      </section>
+
+      <section id="report" class="report"></section>
+
+    </main>
+  </div>
 
   <script src="app.js"></script>
 </body>
