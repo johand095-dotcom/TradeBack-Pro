@@ -567,4 +567,50 @@ button.ghost {
   .actions {
     display: none !important;
   }
+}.score-gauge {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: conic-gradient(var(--blue-main) 0deg, #e5edf6 0deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+
+.score-gauge-inner {
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-gauge-inner strong {
+  font-size: 34px;
+  color: var(--blue-main);
+}
+
+.score-gauge-inner span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.nav-status {
+  float: right;
+  font-weight: 900;
+}
+
+.autosave-status {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.side-nav a.complete {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.35);
 }

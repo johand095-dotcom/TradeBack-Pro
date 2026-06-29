@@ -404,7 +404,8 @@ function calculateInspectionScore() {
 
   document.getElementById("progressText").innerText = progress + "% completed";
   document.getElementById("progressFill").style.width = progress + "%";
-}
+}updateGauge(percentage);
+updateNavigationStatus();
 
 document.addEventListener("change", function(e) {
   if (e.target.matches("select")) {
@@ -413,3 +414,54 @@ document.addEventListener("change", function(e) {
 });
 
 calculateInspectionScore();
+function updateGauge(percentage) {
+  const gauge = document.getElementById("dashGauge");
+  if (!gauge) return;
+
+  const degrees = Math.round((percentage / 100) * 360);
+  gauge.style.background = `conic-gradient(var(--blue-main) ${degrees}deg, #e5edf6 ${degrees}deg)`;
+}
+
+function updateNavigationStatus() {
+  const vehicleFields = ['customer','make','model','registration','vin','odometer'];
+  const vehicleComplete = vehicleFields.some(id => field(id));
+
+  const items = Object.values(state.items);
+  const checkedItems = items.filter(i => i.status !== "Not Checked").length;
+  const inspectionComplete = items.length > 0 && checkedItems === items.length;
+
+  const summaryComplete = field('comments') || field('conclusion');
+
+  document.getElementById("navVehicle").innerText = vehicleComplete ? "✓" : "○";
+  document.getElementById("navInspection").innerText = inspectionComplete ? "✓" : "○";
+  document.getElementById("navScore").innerText = checkedItems > 0 ? "✓" : "○";
+  document.getElementById("navSummary").innerText = summaryComplete ? "✓" : "○";
+  document.getElementById("navSignature").innerText = signaturePadHasInk ? "✓" : "○";
+}
+
+function autoSaveDraft() {
+  saveDraftSilent();
+
+  const el = document.getElementById("autosaveStatus");
+  if (el) {
+    const now = new Date();
+    el.innerText = "Auto-saved at " + now.toLocaleTimeString("en-ZA", {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+}
+
+function saveDraftSilent() {
+  const fields = ['inspectionNo','inspectionDate','inspector','inspectorEmail','customer','make','model','registration','vin','engine','odometer','location','comments','conclusion'];
+  const draft = { state, signature: document.getElementById('signaturePad').toDataURL(), fields: {} };
+
+  fields.forEach(id => draft.fields[id] = field(id));
+
+  localStorage.setItem('tradebackProDraft', JSON.stringify(draft));
+}
+
+setInterval(autoSaveDraft, 30000);
+
+document.addEventListener("input", updateNavigationStatus);
+document.addEventListener("change", updateNavigationStatus);

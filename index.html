@@ -21,13 +21,13 @@
       </div>
 
       <nav class="side-nav">
-        <a href="#dashboard">Dashboard</a>
-        <a href="#inspectionDetails">Vehicle Details</a>
-        <a href="#checklistSection">Inspection</a>
-        <a href="#scoreSection">Score</a>
-        <a href="#commentsSection">Summary</a>
-        <a href="#signatureSection">Signature</a>
-      </nav>
+  <a href="#dashboard">🏠 Dashboard <span class="nav-status" id="navDashboard">✓</span></a>
+  <a href="#inspectionDetails">🚛 Vehicle <span class="nav-status" id="navVehicle">○</span></a>
+  <a href="#checklistSection">📋 Inspection <span class="nav-status" id="navInspection">○</span></a>
+  <a href="#scoreSection">📊 Score <span class="nav-status" id="navScore">○</span></a>
+  <a href="#commentsSection">📝 Summary <span class="nav-status" id="navSummary">○</span></a>
+  <a href="#signatureSection">✍ Signature <span class="nav-status" id="navSignature">○</span></a>
+</nav>
 
       <div class="sidebar-footer">
         <strong>ELT Group (PTY) Ltd</strong>
@@ -38,6 +38,9 @@
     <main class="main-content">
 
       <header class="top-header">
+       <div class="autosave-status" id="autosaveStatus">
+  Auto-save ready
+</div>
         <div>
           <h1>Tradeback Pro</h1>
           <p>Professional Trade-Back Vehicle Inspection Platform</p>
@@ -61,20 +64,25 @@
           </div>
         </div>
 
-        <div class="stat-card">
-          <span id="dashScore">0%</span>
-          <p>Current Score</p>
-        </div>
+   <div class="stat-card">
+  <div class="score-gauge" id="dashGauge">
+    <div class="score-gauge-inner">
+      <strong id="dashScore">0%</strong>
+      <span>Score</span>
+    </div>
+  </div>
+  <p>Current Score</p>
+</div>
 
-        <div class="stat-card">
-          <span id="dashGrade">-</span>
-          <p>Vehicle Grade</p>
-        </div>
+<div class="stat-card">
+  <span id="dashGrade">-</span>
+  <p>Vehicle Grade</p>
+</div>
 
-        <div class="stat-card">
-          <span id="dashFails">0</span>
-          <p>Failed Items</p>
-        </div>
+<div class="stat-card">
+  <span id="dashFails">0</span>
+  <p>Failed Items</p>
+</div>
       </section>
 
       <section class="progress-panel">
