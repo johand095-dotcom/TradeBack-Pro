@@ -10,6 +10,7 @@ const checklistData = [
 ];
 
 let state = { items: {} };
+let appReady = false;
 
 function createInspectionNo() {
   const d = new Date();
@@ -18,10 +19,24 @@ function createInspectionNo() {
 }
 
 function init() {
-  document.getElementById('inspectionNo').value = createInspectionNo();
-  document.getElementById('inspectionDate').valueAsDate = new Date();
+  appReady = false;
+
   renderChecklist();
   initSignature();
+
+  const savedDraft = localStorage.getItem('tradebackProDraft');
+
+  if (savedDraft) {
+    loadDraft();
+  } else {
+    document.getElementById('inspectionNo').value = createInspectionNo();
+    document.getElementById('inspectionDate').valueAsDate = new Date();
+
+    calculateInspectionScore();
+    updateNavigationStatus();
+  }
+
+  appReady = true;
 }
 
 function renderChecklist() {
@@ -82,7 +97,7 @@ function setStatus(id, status) {
   row.classList.toggle('advisory', status === 'Advisory');
 
   calculateInspectionScore();
-}
+}saveDraftSilent();
 
 function setComment(id, comment) {
   state.items[id].comment = comment;
@@ -91,10 +106,13 @@ function setComment(id, comment) {
 function addPhotos(id, files) {
   Array.from(files).forEach(file => {
     const reader = new FileReader();
+
     reader.onload = e => {
       state.items[id].photos.push(e.target.result);
       refreshPhotos(id);
+      saveDraftSilent();
     };
+
     reader.readAsDataURL(file);
   });
 }
@@ -119,6 +137,7 @@ function refreshPhotos(id) {
 function removePhoto(id, index) {
   state.items[id].photos.splice(index, 1);
   refreshPhotos(id);
+  saveDraftSilent();
 }
 
 function field(id) {
@@ -404,8 +423,9 @@ function calculateInspectionScore() {
 
   document.getElementById("progressText").innerText = progress + "% completed";
   document.getElementById("progressFill").style.width = progress + "%";
-}updateGauge(percentage);
-updateNavigationStatus();
+ updateGauge(percentage);
+  updateNavigationStatus();
+}
 
 document.addEventListener("change", function(e) {
   if (e.target.matches("select")) {
@@ -453,6 +473,8 @@ function autoSaveDraft() {
 }
 
 function saveDraftSilent() {
+ if (!appReady) return;
+  
   const fields = ['inspectionNo','inspectionDate','inspector','inspectorEmail','customer','make','model','registration','vin','engine','odometer','location','comments','conclusion'];
   const draft = { state, signature: document.getElementById('signaturePad').toDataURL(), fields: {} };
 
@@ -463,5 +485,26 @@ function saveDraftSilent() {
 
 setInterval(autoSaveDraft, 30000);
 
-document.addEventListener("input", updateNavigationStatus);
-document.addEventListener("change", updateNavigationStatus);
+function handleInspectionChange() {
+  saveDraftSilent();
+
+  try {
+    updateNavigationStatus();
+  } catch (error) {
+    console.warn("Navigation status could not update:", error);
+  }
+
+  const autosaveStatus = document.getElementById("autosaveStatus");
+
+  if (autosaveStatus) {
+    autosaveStatus.innerText =
+      "Saved at " +
+      new Date().toLocaleTimeString("en-ZA", {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+  }
+}
+
+document.addEventListener("input", handleInspectionChange);
+document.addEventListener("change", handleInspectionChange);

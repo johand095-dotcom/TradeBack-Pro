@@ -15,7 +15,7 @@
       <div class="sidebar-brand">
         <div class="logo-mark">ELT</div>
         <div>
-         <h1>Tradeback Pro TEST</h1>
+         <h1>Tradeback Pro</h1>
           <p>Vehicle Inspection System</p>
         </div>
       </div>
@@ -28,6 +28,10 @@
   <a href="#commentsSection">📝 Summary <span class="nav-status" id="navSummary">○</span></a>
   <a href="#signatureSection">✍ Signature <span class="nav-status" id="navSignature">○</span></a>
 </nav>
+<a href="#inspectionLibrary">
+  📁 Saved Inspections
+  <span class="nav-status" id="navLibrary">○</span>
+</a>
 
       <div class="sidebar-footer">
         <strong>ELT Group (PTY) Ltd</strong>
@@ -84,6 +88,51 @@
   <p>Failed Items</p>
 </div>
       </section>
+      <section id="inspectionLibrary" class="card">
+  <h2>Saved Inspections</h2>
+
+  <p class="hint">
+    Draft and completed vehicle inspections will appear here.
+  </p>
+
+  <div class="library-toolbar">
+    <input
+      id="librarySearch"
+      type="search"
+      placeholder="Search by inspection number, customer, registration or VIN"
+    />
+
+    <select id="libraryStatusFilter">
+      <option value="all">All statuses</option>
+      <option value="draft">Draft</option>
+      <option value="completed">Completed</option>
+    </select>
+  </div>
+
+  <div class="inspection-library-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Inspection No.</th>
+          <th>Customer</th>
+          <th>Vehicle</th>
+          <th>Registration</th>
+          <th>Status</th>
+          <th>Last Updated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody id="inspectionLibraryBody">
+        <tr>
+          <td colspan="7" class="empty-library">
+            No saved inspections yet.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
 
       <section class="progress-panel">
         <div>

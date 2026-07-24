@@ -613,4 +613,44 @@ button.ghost {
 .side-nav a.complete {
   background: rgba(255,255,255,0.18);
   border-color: rgba(255,255,255,0.35);
+}.library-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 220px;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.inspection-library-table {
+  overflow-x: auto;
+}
+
+.inspection-library-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.inspection-library-table th,
+.inspection-library-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.inspection-library-table th {
+  background: var(--blue-soft);
+  color: var(--blue-dark);
+  font-size: 14px;
+}
+
+.empty-library {
+  padding: 30px !important;
+  text-align: center !important;
+  color: var(--muted);
+}
+
+@media (max-width: 650px) {
+  .library-toolbar {
+    grid-template-columns: 1fr;
+  }
 }
