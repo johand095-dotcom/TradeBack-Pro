@@ -11,6 +11,63 @@ const checklistData = [
 
 let state = { items: {} };
 let appReady = false;
+const DATABASE_KEY = 'tradebackProDatabase';
+const ACTIVE_INSPECTION_KEY = 'tradebackProActiveInspection';
+
+function getInspectionDatabase() {
+  try {
+    const saved = localStorage.getItem(DATABASE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (error) {
+    console.error('Could not read inspection database:', error);
+    return [];
+  }
+}
+
+function saveInspectionDatabase(records) {
+  try {
+    localStorage.setItem(DATABASE_KEY, JSON.stringify(records));
+    return true;
+  } catch (error) {
+    console.error('Could not save inspection database:', error);
+
+    const status = document.getElementById('autosaveStatus');
+    if (status) {
+      status.innerText = 'Error saving inspection';
+    }
+
+    return false;
+  }
+}
+
+function upsertInspectionRecord(record) {
+  const records = getInspectionDatabase();
+
+  const existingIndex = records.findIndex(
+    item => item.inspectionNo === record.inspectionNo
+  );
+
+  if (existingIndex >= 0) {
+    records[existingIndex] = record;
+  } else {
+    records.push(record);
+  }
+
+  records.sort(
+    (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+  );
+
+  const saved = saveInspectionDatabase(records);
+
+  if (saved) {
+    localStorage.setItem(
+      ACTIVE_INSPECTION_KEY,
+      record.inspectionNo
+    );
+  }
+
+  return saved;
+}
 
 function createInspectionNo() {
   const d = new Date();
@@ -227,21 +284,201 @@ function generateReport() {
   buildReport();
 
   const report = document.getElementById('report');
-  report.style.display = 'block';
 
-  setTimeout(() => {
-    window.print();
-  }, 300);
-}
+  if (!report || !report.innerHTML.trim()) {
+    alert('Report content could not be generated.');
+    return;
+  }
 
-function saveDraft() {
-  const fields = ['inspectionNo','inspectionDate','inspector','inspectorEmail','customer','make','model','registration','vin','engine','odometer','location','comments','conclusion'];
-  const draft = { state, signature: document.getElementById('signaturePad').toDataURL(), fields: {} };
+  const inspectionNo =
+    field('inspectionNo') || 'Tradeback-Pro-Report';
 
-  fields.forEach(id => draft.fields[id] = field(id));
+  const printWindow = window.open('', '_blank');
 
-  localStorage.setItem('tradebackProDraft', JSON.stringify(draft));
-  alert('Draft saved on this device.');
+  if (!printWindow) {
+    alert(
+      'The report window was blocked by the browser. Please allow pop-ups for Tradeback Pro and try again.'
+    );
+    return;
+  }
+
+  printWindow.document.open();
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+
+      <title>${inspectionNo}</title>
+
+      <style>
+        @page {
+          size: A4;
+          margin: 12mm;
+        }
+
+        * {
+          box-sizing: border-box;
+        }
+
+        body {
+          margin: 0;
+          font-family: Arial, Helvetica, sans-serif;
+          color: #111827;
+          background: white;
+          font-size: 12px;
+        }
+
+        .report-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 4px solid #003b73;
+          padding-bottom: 12px;
+          margin-bottom: 18px;
+        }
+
+        .report-header h1 {
+          margin: 0 0 6px;
+          color: #001e3c;
+          font-size: 24px;
+        }
+
+        .report-header p {
+          margin: 0;
+        }
+
+        .mini-logo {
+          color: #003b73;
+          font-size: 24px;
+          font-weight: 900;
+          border: 3px solid #003b73;
+          padding: 10px;
+          border-radius: 8px;
+        }
+
+        h2 {
+          color: #001e3c;
+          margin-top: 22px;
+          margin-bottom: 8px;
+          border-bottom: 2px solid #eaf3ff;
+          padding-bottom: 6px;
+          page-break-after: avoid;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 10px 0 18px;
+        }
+
+        th,
+        td {
+          border: 1px solid #9ca3af;
+          padding: 7px;
+          text-align: left;
+          vertical-align: top;
+          font-size: 10px;
+        }
+
+        th {
+          background: #e8edf5;
+          font-weight: 700;
+        }
+
+        thead {
+          display: table-header-group;
+        }
+
+        tr {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+
+        img.evidence {
+          max-width: 100px;
+          max-height: 75px;
+          object-fit: contain;
+          margin: 2px;
+        }
+
+        img {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+
+        p {
+          line-height: 1.45;
+        }
+
+        @media print {
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      </style>
+    </head>
+
+    <body>
+      ${report.innerHTML}
+    </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+
+  const markInspectionCompleted = () => {
+    const records = getInspectionDatabase();
+
+    const index = records.findIndex(
+      item => item.inspectionNo === inspectionNo
+    );
+
+    if (index >= 0) {
+      records[index].status = 'Completed';
+      records[index].completedAt =
+        new Date().toISOString();
+
+      records[index].updatedAt =
+        new Date().toISOString();
+
+      saveInspectionDatabase(records);
+      renderInspectionLibrary();
+    }
+  };
+
+  const waitForImagesAndPrint = () => {
+    const images =
+      Array.from(printWindow.document.images);
+
+    const pendingImages = images.map(img => {
+      if (img.complete) {
+        return Promise.resolve();
+      }
+
+      return new Promise(resolve => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+    });
+
+    Promise.all(pendingImages).then(() => {
+      markInspectionCompleted();
+
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+      }, 300);
+    });
+  };
+
+  if (printWindow.document.readyState === 'complete') {
+    waitForImagesAndPrint();
+  } else {
+    printWindow.onload = waitForImagesAndPrint;
+  }
 }
 
 function loadDraft() {
@@ -272,13 +509,64 @@ function loadDraft() {
 }
 
 function resetInspection() {
-  if (confirm('Start a new inspection and clear current entries?')) {
-    location.reload();
+  const confirmed = confirm(
+    'Start a new inspection? The current inspection will be saved first.'
+  );
+
+  if (!confirmed) return;
+
+  if (appReady && field('inspectionNo')) {
+    saveDraftSilent();
   }
+
+  appReady = false;
+
+  state = { items: {} };
+
+  const fieldsToClear = [
+    'customer',
+    'make',
+    'model',
+    'registration',
+    'vin',
+    'engine',
+    'odometer',
+    'location',
+    'comments',
+    'conclusion'
+  ];
+
+  fieldsToClear.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) element.value = '';
+  });
+
+  document.getElementById('inspectionNo').value =
+    createInspectionNo();
+
+  document.getElementById('inspectionDate').valueAsDate =
+    new Date();
+
+  clearSignature();
+  renderChecklist();
+  calculateInspectionScore();
+  updateNavigationStatus();
+
+  localStorage.removeItem('tradebackProDraft');
+
+  localStorage.setItem(
+    ACTIVE_INSPECTION_KEY,
+    field('inspectionNo')
+  );
+
+  appReady = true;
+
+  saveDraftSilent();
+  renderInspectionLibrary();
+
+  document.getElementById('inspectionDetails')
+    ?.scrollIntoView({ behavior: 'smooth' });
 }
-
-let signaturePadHasInk = false;
-
 function initSignature() {
   const canvas = document.getElementById('signaturePad');
   const ctx = canvas.getContext('2d');
@@ -473,16 +761,94 @@ function autoSaveDraft() {
 }
 
 function saveDraftSilent() {
- if (!appReady) return;
-  
-  const fields = ['inspectionNo','inspectionDate','inspector','inspectorEmail','customer','make','model','registration','vin','engine','odometer','location','comments','conclusion'];
-  const draft = { state, signature: document.getElementById('signaturePad').toDataURL(), fields: {} };
-
-  fields.forEach(id => draft.fields[id] = field(id));
-
-  localStorage.setItem('tradebackProDraft', JSON.stringify(draft));
+  if (!appReady) return false;
+  if (!field('inspectionNo')) {
+  document.getElementById('inspectionNo').value = createInspectionNo();
 }
 
+if (!field('inspectionDate')) {
+  document.getElementById('inspectionDate').valueAsDate = new Date();
+}
+
+  const fields = [
+    'inspectionNo',
+    'inspectionDate',
+    'inspector',
+    'inspectorEmail',
+    'customer',
+    'make',
+    'model',
+    'registration',
+    'vin',
+    'engine',
+    'odometer',
+    'location',
+    'comments',
+    'conclusion'
+  ];
+
+  const fieldValues = {};
+
+  fields.forEach(id => {
+    fieldValues[id] = field(id);
+  });
+
+  const signatureCanvas = document.getElementById('signaturePad');
+
+  const signature =
+    signatureCanvas && signaturePadHasInk
+      ? signatureCanvas.toDataURL()
+      : '';
+
+  const legacyDraft = {
+    state,
+    signature,
+    fields: fieldValues
+  };
+
+  try {
+    // Preserve compatibility with the current recovery system.
+    localStorage.setItem(
+      'tradebackProDraft',
+      JSON.stringify(legacyDraft)
+    );
+
+    const record = {
+      inspectionNo: fieldValues.inspectionNo,
+      status: 'Draft',
+      fields: fieldValues,
+      state,
+      signature,
+      score:
+        document.getElementById('scorePercentage')?.innerText || '0%',
+      grade:
+        document.getElementById('scoreGrade')?.innerText || 'Not Rated',
+      createdAt:
+        getInspectionDatabase().find(
+          item => item.inspectionNo === fieldValues.inspectionNo
+        )?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const saved = upsertInspectionRecord(record);
+
+    if (saved && typeof renderInspectionLibrary === 'function') {
+      renderInspectionLibrary();
+    }
+
+    return saved;
+  } catch (error) {
+    console.error('Draft save failed:', error);
+
+    const status = document.getElementById('autosaveStatus');
+
+    if (status) {
+      status.innerText = 'Error saving draft';
+    }
+
+    return false;
+  }
+}
 setInterval(autoSaveDraft, 30000);
 
 function handleInspectionChange() {
@@ -508,3 +874,180 @@ function handleInspectionChange() {
 
 document.addEventListener("input", handleInspectionChange);
 document.addEventListener("change", handleInspectionChange);
+function renderInspectionLibrary() {
+  const body = document.getElementById('inspectionLibraryBody');
+  if (!body) return;
+
+  const records = getInspectionDatabase();
+
+  const search =
+    (document.getElementById('librarySearch')?.value || '')
+      .trim()
+      .toLowerCase();
+
+  const statusFilter =
+    document.getElementById('libraryStatusFilter')?.value || 'all';
+
+  const filtered = records.filter(record => {
+    const fields = record.fields || {};
+
+    const searchable = [
+      record.inspectionNo,
+      fields.customer,
+      fields.make,
+      fields.model,
+      fields.registration,
+      fields.vin
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    const matchesSearch =
+      !search || searchable.includes(search);
+
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (record.status || '').toLowerCase() === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  if (!filtered.length) {
+    body.innerHTML = `
+      <tr>
+        <td colspan="7" class="empty-library">
+          No saved inspections found.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  body.innerHTML = filtered.map(record => {
+    const fields = record.fields || {};
+
+    const vehicle =
+      [fields.make, fields.model]
+        .filter(Boolean)
+        .join(' ') || '-';
+
+    const updated = record.updatedAt
+      ? new Date(record.updatedAt).toLocaleString('en-ZA')
+      : '-';
+
+    return `
+      <tr>
+        <td><strong>${record.inspectionNo || '-'}</strong></td>
+        <td>${fields.customer || '-'}</td>
+        <td>${vehicle}</td>
+        <td>${fields.registration || '-'}</td>
+        <td>${record.status || 'Draft'}</td>
+        <td>${updated}</td>
+        <td>
+          <button
+            type="button"
+            onclick="openInspection('${record.inspectionNo}')">
+            Open
+          </button>
+
+          <button
+            type="button"
+            class="ghost"
+            onclick="deleteInspection('${record.inspectionNo}')">
+            Delete
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+
+function openInspection(inspectionNo) {
+  const record = getInspectionDatabase().find(
+    item => item.inspectionNo === inspectionNo
+  );
+
+  if (!record) {
+    alert('Inspection could not be found.');
+    return;
+  }
+
+  appReady = false;
+
+  state = record.state || { items: {} };
+
+  Object.entries(record.fields || {}).forEach(([id, value]) => {
+    const element = document.getElementById(id);
+    if (element) element.value = value || '';
+  });
+
+  renderChecklist();
+
+  Object.entries(state.items || {}).forEach(([id, item]) => {
+    const row = document.getElementById(`row_${id}`);
+    if (!row) return;
+
+    const select = row.querySelector('select');
+    const textarea = row.querySelector('textarea');
+
+    if (select) select.value = item.status || 'Not Checked';
+    if (textarea) textarea.value = item.comment || '';
+
+    row.classList.toggle('failed', item.status === 'Failed');
+    row.classList.toggle('advisory', item.status === 'Advisory');
+
+    refreshPhotos(id);
+  });
+
+  clearSignature();
+
+  if (record.signature) {
+    restoreSignature(record.signature);
+  }
+
+  localStorage.setItem(
+    ACTIVE_INSPECTION_KEY,
+    inspectionNo
+  );
+
+  calculateInspectionScore();
+  updateNavigationStatus();
+
+  appReady = true;
+
+  document.getElementById('inspectionDetails')
+    ?.scrollIntoView({ behavior: 'smooth' });
+}
+
+
+function deleteInspection(inspectionNo) {
+  const confirmed = confirm(
+    `Delete inspection ${inspectionNo}? This cannot be undone.`
+  );
+
+  if (!confirmed) return;
+
+  const records = getInspectionDatabase().filter(
+    item => item.inspectionNo !== inspectionNo
+  );
+
+  saveInspectionDatabase(records);
+
+  if (
+    localStorage.getItem(ACTIVE_INSPECTION_KEY) === inspectionNo
+  ) {
+    localStorage.removeItem(ACTIVE_INSPECTION_KEY);
+  }
+
+  renderInspectionLibrary();
+}
+
+
+document
+  .getElementById('librarySearch')
+  ?.addEventListener('input', renderInspectionLibrary);
+
+document
+  .getElementById('libraryStatusFilter')
+  ?.addEventListener('change', renderInspectionLibrary);

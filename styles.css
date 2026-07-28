@@ -654,3 +654,85 @@ button.ghost {
     grid-template-columns: 1fr;
   }
 }
+/* ================================
+   PDF REPORT STABILITY
+================================ */
+
+.report {
+  width: 100%;
+  background: white;
+}
+
+.report table {
+  page-break-inside: auto;
+}
+
+.report tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.report thead {
+  display: table-header-group;
+}
+
+.report h1,
+.report h2,
+.report .report-header {
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+.report img {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.report img.evidence {
+  max-width: 110px;
+  max-height: 85px;
+  object-fit: contain;
+}
+
+@media print {
+  .report {
+    position: static !important;
+  }
+}
+#pdfExportContainer {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+#pdfExportContainer table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+
+#pdfExportContainer th,
+#pdfExportContainer td {
+  border: 1px solid #999;
+  padding: 7px;
+  vertical-align: top;
+  font-size: 11px;
+}
+
+#pdfExportContainer th {
+  background: #e8edf5;
+}
+
+#pdfExportContainer img.evidence {
+  max-width: 105px;
+  max-height: 80px;
+  object-fit: contain;
+}
+
+#pdfExportContainer tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+#pdfExportContainer .report-header {
+  break-after: avoid;
+  page-break-after: avoid;
+}
