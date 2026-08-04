@@ -1218,6 +1218,25 @@ function autoSaveDraft() {
   }
 }
 
+
+function saveDraft() {
+  const saved = saveDraftSilent();
+
+  if (saved) {
+    if (typeof renderInspectionLibrary === 'function') {
+      renderInspectionLibrary();
+    }
+
+    const inspectionNo =
+      field('inspectionNo') || 'Current inspection';
+
+    alert(`${inspectionNo} saved successfully.`);
+  } else {
+    alert(
+      'The inspection could not be saved. Please check the browser console for details.'
+    );
+  }
+}
 function saveDraftSilent() {
   if (!appReady) return false;
   if (!field('inspectionNo')) {
