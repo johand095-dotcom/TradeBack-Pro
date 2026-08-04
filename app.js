@@ -11,6 +11,83 @@ const checklistData = [
 
 let state = { items: {} };
 let appReady = false;
+const SECTION_WEIGHTS = {
+  'Vehicle Identification': 8,
+  'Exterior Body': 8,
+  'Glass and Lights': 10,
+  'Tyres and Wheels': 12,
+  'Interior and Cab': 7,
+  'Mechanical': 30,
+  'Road Test': 20,
+  'Accessories and Equipment': 5
+};
+
+const CRITICAL_ITEMS = [
+  'Brake lights working',
+  'Front tyres condition',
+  'Rear tyres condition',
+  'Wheel nuts present and secure',
+  'Seat belts working',
+  'Engine starts',
+  'Air leaks',
+  'Brakes operation',
+  'Steering operation',
+  'Braking normal'
+];
+
+const MAJOR_ITEMS = [
+  'VIN plate present and legible',
+  'Engine number present and legible',
+  'License disc valid',
+  'Windscreen condition',
+  'Mirrors condition',
+  'Headlights working',
+  'Tail lights working',
+  'Indicators working',
+  'Reverse lights working',
+  'Spare wheel present',
+  'Warning lights check',
+  'Engine idle condition',
+  'Oil leaks',
+  'Coolant leaks',
+  'Transmission operation',
+  'Clutch operation',
+  'Suspension condition',
+  'Acceleration normal',
+  'Gear changes normal',
+  'Steering alignment',
+  'Unusual noises',
+  'Vehicle pulls correctly under load'
+];
+
+const SEVERITY_MULTIPLIERS = {
+  Minor: 1,
+  Major: 2,
+  Critical: 3
+};
+
+let latestScoreResult = {
+  percentage: 0,
+  grade: 'Not Rated',
+  condition: 'Incomplete',
+  recommendation: 'Complete the inspection to generate a result.',
+  sectionScores: {},
+  criticalFailures: 0,
+  majorFailures: 0,
+  minorFailures: 0
+};
+
+function getItemSeverity(itemName) {
+  if (CRITICAL_ITEMS.includes(itemName)) {
+    return 'Critical';
+  }
+
+  if (MAJOR_ITEMS.includes(itemName)) {
+    return 'Major';
+  }
+
+  return 'Minor';
+}
 const DATABASE_KEY = 'tradebackProDatabase';
 const ACTIVE_INSPECTION_KEY = 'tradebackProActiveInspection';
 
@@ -159,19 +236,94 @@ function setStatus(id, status) {
 function setComment(id, comment) {
   state.items[id].comment = comment;
 }
+function compressImageFile(file, options = {}) {
+  const maxWidth = options.maxWidth || 1200;
+  const maxHeight = options.maxHeight || 1200;
+  const quality = options.quality || 0.7;
 
-function addPhotos(id, files) {
-  Array.from(files).forEach(file => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
-    reader.onload = e => {
-      state.items[id].photos.push(e.target.result);
-      refreshPhotos(id);
-      saveDraftSilent();
+    reader.onerror = () => {
+      reject(new Error('The selected image could not be read.'));
+    };
+
+    reader.onload = event => {
+      const image = new Image();
+
+      image.onerror = () => {
+        reject(new Error('The selected image could not be processed.'));
+      };
+
+      image.onload = () => {
+        let width = image.width;
+        let height = image.height;
+
+        const scale = Math.min(
+          1,
+          maxWidth / width,
+          maxHeight / height
+        );
+
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext('2d');
+
+        context.drawImage(
+          image,
+          0,
+          0,
+          width,
+          height
+        );
+
+        const compressedDataUrl = canvas.toDataURL(
+          'image/jpeg',
+          quality
+        );
+
+        resolve(compressedDataUrl);
+      };
+
+      image.src = event.target.result;
     };
 
     reader.readAsDataURL(file);
   });
+}
+async function addPhotos(id, files) {
+  const selectedFiles = Array.from(files);
+
+  for (const file of selectedFiles) {
+    try {
+      const compressedPhoto =
+        await compressImageFile(file, {
+          maxWidth: 1200,
+          maxHeight: 1200,
+          quality: 0.7
+        });
+
+      state.items[id].photos.push(compressedPhoto);
+
+      refreshPhotos(id);
+      saveDraftSilent();
+
+    } catch (error) {
+      console.error(
+        'Photo compression failed:',
+        error
+      );
+
+      alert(
+        `The photo "${file.name}" could not be added.`
+      );
+    }
+  }
 }
 
 function refreshPhotos(id) {
@@ -218,23 +370,133 @@ function validateInspection() {
 
   return true;
 }
+function getInspectionMetrics() {
+  const items = Object.values(state.items || {});
 
+  let passed = 0;
+  let advisory = 0;
+  let failed = 0;
+  let earned = 0;
+  let possible = 0;
+
+  items.forEach(item => {
+    if (item.status === 'Passed') {
+      passed++;
+      earned += 2;
+      possible += 2;
+    } else if (item.status === 'Advisory') {
+      advisory++;
+      earned += 1;
+      possible += 2;
+    } else if (item.status === 'Failed') {
+      failed++;
+      possible += 2;
+    }
+  });
+
+  const percentage =
+    possible > 0
+      ? Math.round((earned / possible) * 100)
+      : 0;
+
+  let grade = 'Not Rated';
+  let condition = 'Incomplete';
+  let recommendation =
+    'Complete the inspection to generate a result.';
+
+  if (percentage >= 90) {
+    grade = 'A';
+    condition = 'Excellent';
+    recommendation =
+      'Suitable for resale with minimal or no repairs required.';
+  } else if (percentage >= 80) {
+    grade = 'B';
+    condition = 'Good';
+    recommendation =
+      'Suitable for resale after minor attention.';
+  } else if (percentage >= 70) {
+    grade = 'C';
+    condition = 'Average';
+    recommendation =
+      'Repairs required before resale.';
+  } else if (percentage >= 55) {
+    grade = 'D';
+    condition = 'Poor';
+    recommendation =
+      'Major repairs required before resale.';
+  } else if (possible > 0) {
+    grade = 'E';
+    condition = 'Critical';
+    recommendation =
+      'Not recommended for resale until major repairs are completed.';
+  }
+
+  return {
+    percentage,
+    grade,
+    condition,
+    recommendation,
+    passed,
+    advisory,
+    failed
+  };
+}
 function buildReport() {
   const report = document.getElementById('report');
+  const metrics = getInspectionMetrics();
 
-  const rows = Object.values(state.items).map(i => {
-    const photoHtml = (i.photos || []).map(p => `<img class="evidence" src="${p}" />`).join('');
+ const rows = Object.values(state.items).map(i => {
+  const photoCount = (i.photos || []).length;
+
+  const evidenceText = photoCount
+    ? `${photoCount} photo${photoCount === 1 ? '' : 's'} attached`
+    : '-';
+
+  return `
+    <tr>
+      <td>${i.section}</td>
+      <td>${i.item}</td>
+      <td>${i.status}</td>
+      <td>${i.comment || ''}</td>
+      <td>${evidenceText}</td>
+    </tr>
+  `;
+}).join('');
+const photoEvidenceHtml = Object.values(state.items)
+  .filter(i => i.photos && i.photos.length > 0)
+  .map(i => {
+    const photos = i.photos.map((photo, index) => `
+      <div class="report-photo-card">
+        <img
+          class="report-photo"
+          src="${photo}"
+          alt="${i.item} photo ${index + 1}"
+        />
+
+        <div class="report-photo-caption">
+          <strong>${i.section}</strong><br>
+          ${i.item}<br>
+          Photo ${index + 1}
+        </div>
+      </div>
+    `).join('');
+
     return `
-      <tr>
-        <td>${i.section}</td>
-        <td>${i.item}</td>
-        <td>${i.status}</td>
-        <td>${i.comment || ''}</td>
-        <td>${photoHtml}</td>
-      </tr>
-    `;
-  }).join('');
+      <div class="report-photo-group">
+        <h3>${i.item}</h3>
+        <p>
+          <strong>Section:</strong> ${i.section}
+          &nbsp; | &nbsp;
+          <strong>Status:</strong> ${i.status}
+        </p>
 
+        <div class="report-photo-grid">
+          ${photos}
+        </div>
+      </div>
+    `;
+  })
+  .join('');
   report.innerHTML = `
     <div class="report-header">
       <div>
@@ -253,6 +515,41 @@ function buildReport() {
       <tr><th>Engine No.</th><td>${field('engine')}</td><th>Odometer</th><td>${field('odometer')}</td></tr>
     </table>
 
+<h2>Inspection Summary</h2>
+
+<table class="report-summary-table">
+  <tr>
+    <th>Overall Score</th>
+    <td>${metrics.percentage}%</td>
+
+    <th>Vehicle Grade</th>
+    <td>${metrics.grade}</td>
+  </tr>
+
+  <tr>
+    <th>Condition</th>
+    <td>${metrics.condition}</td>
+
+    <th>Inspection Status</th>
+    <td>Completed</td>
+  </tr>
+
+  <tr>
+    <th>Passed Items</th>
+    <td>${metrics.passed}</td>
+
+    <th>Advisory Items</th>
+    <td>${metrics.advisory}</td>
+  </tr>
+
+  <tr>
+    <th>Failed Items</th>
+    <td>${metrics.failed}</td>
+
+    <th>Recommendation</th>
+    <td>${metrics.recommendation}</td>
+  </tr>
+</table>
     <h2>Inspection Results</h2>
     <table>
       <thead>
@@ -266,7 +563,18 @@ function buildReport() {
       </thead>
       <tbody>${rows}</tbody>
     </table>
+${photoEvidenceHtml
+  ? `
+    <h2 class="photo-appendix-heading">
+      Photo Evidence
+    </h2>
 
+    <div class="photo-evidence-appendix">
+      ${photoEvidenceHtml}
+    </div>
+  `
+  : ''
+}
     <h2>Comments</h2>
     <p>${field('comments').replace(/\n/g, '<br>')}</p>
 
@@ -411,7 +719,55 @@ function generateReport() {
         p {
           line-height: 1.45;
         }
+.report-photo-group {
+  margin-bottom: 18px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
 
+.report-photo-group h3 {
+  margin: 0 0 4px;
+  color: #001e3c;
+  font-size: 15px;
+}
+
+.report-photo-group p {
+  margin: 0 0 8px;
+  color: #4b5563;
+  font-size: 10px;
+}
+
+.report-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.report-photo-card {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.report-photo {
+  display: block;
+  width: 100%;
+  height: 150px;
+  object-fit: contain;
+  background: #f8fafc;
+}
+
+.report-photo-caption {
+  padding-top: 5px;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.photo-appendix-heading {
+  page-break-before: always;
+}
         @media print {
           body {
             -webkit-print-color-adjust: exact;
@@ -631,97 +987,199 @@ init();
 function calculateInspectionScore() {
   const items = Object.values(state.items);
 
-  let totalPossible = 0;
-  let totalScore = 0;
   let pass = 0;
   let advisory = 0;
   let fail = 0;
   let checked = 0;
 
+  let criticalFailures = 0;
+  let majorFailures = 0;
+  let minorFailures = 0;
+
+  const sectionScores = {};
+  let weightedTotal = 0;
+  let activeWeightTotal = 0;
+
+  Object.keys(SECTION_WEIGHTS).forEach(sectionName => {
+    const sectionItems = items.filter(
+      item =>
+        item.section === sectionName &&
+        item.status !== 'N/A' &&
+        item.status !== 'Not Checked'
+    );
+
+    if (!sectionItems.length) {
+      sectionScores[sectionName] = null;
+      return;
+    }
+
+    let sectionEarned = 0;
+    let sectionPossible = 0;
+
+    sectionItems.forEach(item => {
+      const severity = getItemSeverity(item.item);
+      const multiplier =
+        SEVERITY_MULTIPLIERS[severity] || 1;
+
+      sectionPossible += multiplier;
+
+      if (item.status === 'Passed') {
+        sectionEarned += multiplier;
+        pass++;
+        checked++;
+      }
+
+      if (item.status === 'Advisory') {
+        sectionEarned += multiplier * 0.5;
+        advisory++;
+        checked++;
+      }
+
+      if (item.status === 'Failed') {
+        fail++;
+        checked++;
+
+        if (severity === 'Critical') {
+          criticalFailures++;
+        } else if (severity === 'Major') {
+          majorFailures++;
+        } else {
+          minorFailures++;
+        }
+      }
+    });
+
+    const sectionPercentage =
+      sectionPossible > 0
+        ? (sectionEarned / sectionPossible) * 100
+        : 0;
+
+    sectionScores[sectionName] =
+      Math.round(sectionPercentage);
+
+    const sectionWeight =
+      SECTION_WEIGHTS[sectionName];
+
+    weightedTotal +=
+      sectionPercentage * sectionWeight;
+
+    activeWeightTotal += sectionWeight;
+  });
+
   items.forEach(item => {
-    const status = item.status;
-
-    if (status === "Passed") {
-      totalScore += 2;
-      totalPossible += 2;
-      pass++;
-      checked++;
-    }
-
-    if (status === "Advisory") {
-      totalScore += 1;
-      totalPossible += 2;
-      advisory++;
-      checked++;
-    }
-
-    if (status === "Failed") {
-      totalScore += 0;
-      totalPossible += 2;
-      fail++;
-      checked++;
-    }
-
-    if (status === "N/A") {
+    if (item.status === 'N/A') {
       checked++;
     }
   });
 
-  const percentage = totalPossible > 0
-    ? Math.round((totalScore / totalPossible) * 100)
-    : 0;
+  let percentage =
+    activeWeightTotal > 0
+      ? Math.round(weightedTotal / activeWeightTotal)
+      : 0;
 
-  let grade = "Not Rated";
-  let condition = "Incomplete";
-  let recommendation = "Complete the inspection to generate a result.";
+  let grade = 'Not Rated';
+  let condition = 'Incomplete';
+  let recommendation =
+    'Complete the inspection to generate a result.';
 
   if (percentage >= 90) {
-    grade = "A";
-    condition = "Excellent";
-    recommendation = "Suitable for resale with minimal or no repairs required.";
-  } else if (percentage >= 75) {
-    grade = "B";
-    condition = "Good";
-    recommendation = "Suitable for resale after minor attention.";
-  } else if (percentage >= 60) {
-    grade = "C";
-    condition = "Average";
-    recommendation = "Repairs required before resale.";
+    grade = 'A';
+    condition = 'Excellent';
+    recommendation =
+      'Suitable for resale with minimal or no repairs required.';
+  } else if (percentage >= 80) {
+    grade = 'B';
+    condition = 'Good';
+    recommendation =
+      'Suitable for resale after minor attention.';
+  } else if (percentage >= 70) {
+    grade = 'C';
+    condition = 'Average';
+    recommendation =
+      'Repairs required before resale.';
+  } else if (percentage >= 55) {
+    grade = 'D';
+    condition = 'Poor';
+    recommendation =
+      'Major repairs required before resale.';
   } else if (percentage > 0) {
-    grade = "D";
-    condition = "Poor";
-    recommendation = "Major repairs required before resale.";
+    grade = 'E';
+    condition = 'Critical';
+    recommendation =
+      'Not recommended for resale until major repairs and reinspection are completed.';
+  }
+
+  /*
+   * Critical-failure protection:
+   * a vehicle with a critical safety or mechanical failure
+   * cannot receive a score above 54% or a grade better than E.
+   */
+  if (criticalFailures > 0) {
+    percentage = Math.min(percentage, 54);
+    grade = 'E';
+    condition = 'Critical Attention Required';
+    recommendation =
+      `${criticalFailures} critical defect${criticalFailures === 1 ? '' : 's'} identified. ` +
+      'Vehicle is not suitable for resale until repaired and reinspected.';
   }
 
   const totalItems = items.length;
-  const progress = totalItems > 0 ? Math.round((checked / totalItems) * 100) : 0;
 
-  document.getElementById("scorePercentage").innerText = percentage + "%";
-  document.getElementById("scoreGrade").innerText = grade;
-  document.getElementById("scoreCondition").innerText = condition;
-  document.getElementById("scoreRecommendation").innerText = recommendation;
+  const progress =
+    totalItems > 0
+      ? Math.round((checked / totalItems) * 100)
+      : 0;
 
-  document.getElementById("passCount").innerText = pass;
-  document.getElementById("advisoryCount").innerText = advisory;
-  document.getElementById("failCount").innerText = fail;
+  latestScoreResult = {
+    percentage,
+    grade,
+    condition,
+    recommendation,
+    sectionScores,
+    criticalFailures,
+    majorFailures,
+    minorFailures
+  };
 
-  document.getElementById("dashScore").innerText = percentage + "%";
-  document.getElementById("dashGrade").innerText = grade === "Not Rated" ? "-" : grade;
-  document.getElementById("dashFails").innerText = fail;
+  document.getElementById('scorePercentage').innerText =
+    percentage + '%';
 
-  document.getElementById("progressText").innerText = progress + "% completed";
-  document.getElementById("progressFill").style.width = progress + "%";
- updateGauge(percentage);
+  document.getElementById('scoreGrade').innerText =
+    grade;
+
+  document.getElementById('scoreCondition').innerText =
+    condition;
+
+  document.getElementById('scoreRecommendation').innerText =
+    recommendation;
+
+  document.getElementById('passCount').innerText =
+    pass;
+
+  document.getElementById('advisoryCount').innerText =
+    advisory;
+
+  document.getElementById('failCount').innerText =
+    fail;
+
+  document.getElementById('dashScore').innerText =
+    percentage + '%';
+
+  document.getElementById('dashGrade').innerText =
+    grade === 'Not Rated' ? '-' : grade;
+
+  document.getElementById('dashFails').innerText =
+    fail;
+
+  document.getElementById('progressText').innerText =
+    progress + '% completed';
+
+  document.getElementById('progressFill').style.width =
+    progress + '%';
+
+  updateGauge(percentage);
   updateNavigationStatus();
 }
-
-document.addEventListener("change", function(e) {
-  if (e.target.matches("select")) {
-    calculateInspectionScore();
-  }
-});
-
-calculateInspectionScore();
 function updateGauge(percentage) {
   const gauge = document.getElementById("dashGauge");
   if (!gauge) return;
