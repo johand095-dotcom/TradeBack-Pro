@@ -11,6 +11,11 @@ const checklistData = [
 
 let state = { items: {} };
 let appReady = false;
+let signaturePadHasInk = false;
+
+const DATABASE_KEY = 'tradebackProDatabase';
+const ACTIVE_INSPECTION_KEY = 'tradebackProActiveInspection';
+
 const SECTION_WEIGHTS = {
   'Vehicle Identification': 8,
   'Exterior Body': 8,
@@ -66,17 +71,6 @@ const SEVERITY_MULTIPLIERS = {
   Critical: 3
 };
 
-let latestScoreResult = {
-  percentage: 0,
-  grade: 'Not Rated',
-  condition: 'Incomplete',
-  recommendation: 'Complete the inspection to generate a result.',
-  sectionScores: {},
-  criticalFailures: 0,
-  majorFailures: 0,
-  minorFailures: 0
-};
-
 function getItemSeverity(itemName) {
   if (CRITICAL_ITEMS.includes(itemName)) {
     return 'Critical';
@@ -88,9 +82,7 @@ function getItemSeverity(itemName) {
 
   return 'Minor';
 }
-const DATABASE_KEY = 'tradebackProDatabase';
-const ACTIVE_INSPECTION_KEY = 'tradebackProActiveInspection';
-
+ 
 function getInspectionDatabase() {
   try {
     const saved = localStorage.getItem(DATABASE_KEY);
