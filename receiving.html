@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ELT Vehicle Inspection Suite - New Vehicle Receiving</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="receiving.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="logo-mark">ELT</div>
+        <div>
+          <h1>Vehicle Suite</h1>
+          <p>Inspection & Receiving</p>
+        </div>
+      </div>
+      <nav class="side-nav">
+        <a href="index.html">🚛 Tradeback Inspection <span class="nav-status">→</span></a>
+        <a href="#receivingDashboard">🏠 Receiving Dashboard <span class="nav-status">✓</span></a>
+        <a href="#receivingDetails">📦 Vehicle Details <span class="nav-status" id="navReceivingDetails">○</span></a>
+        <a href="#receivingChecklistSection">📋 Visual Check <span class="nav-status" id="navReceivingChecklist">○</span></a>
+        <a href="#receivingSummarySection">📝 Summary <span class="nav-status" id="navReceivingSummary">○</span></a>
+        <a href="#receivingSignatureSection">✍ Signature <span class="nav-status" id="navReceivingSignature">○</span></a>
+        <a href="#receivingLibrary">📁 Saved Receivings <span class="nav-status">○</span></a>
+      </nav>
+      <div class="sidebar-footer">
+        <strong>ELT Group (PTY) Ltd</strong>
+        <span>Receiving Module v1.0</span>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header">
+        <div class="autosave-status" id="receivingAutosaveStatus">Auto-save ready</div>
+        <div>
+          <h1>New Vehicle Receiving</h1>
+          <p>Stock arrival visual inspection and receiving report</p>
+        </div>
+        <div class="top-actions">
+          <button type="button" class="ghost" onclick="newReceiving()">New Receiving</button>
+          <button type="button" onclick="saveReceivingDraft()">Save Draft</button>
+          <button type="button" class="primary" onclick="generateReceivingReport()">Download Report</button>
+          <button type="button" class="ghost" onclick="emailReceivingReport()">Email Report</button>
+        </div>
+      </header>
+
+      <section id="receivingDashboard" class="dashboard receiving-dashboard">
+        <div class="dashboard-card hero-card">
+          <h2>Receiving Dashboard</h2>
+          <p>Check in new vehicles, record transport damage and retain a complete receiving history.</p>
+          <div class="hero-actions">
+            <a href="#receivingDetails" class="button-link primary">Start Receiving</a>
+            <button type="button" class="ghost" onclick="loadLatestReceivingDraft()">Continue Draft</button>
+          </div>
+        </div>
+        <div class="stat-card"><span id="receivingTotalCount">0</span><p>Total Saved</p></div>
+        <div class="stat-card"><span id="receivingDamageCount">0</span><p>With Damage</p></div>
+        <div class="stat-card"><span id="receivingCompletedCount">0</span><p>Completed</p></div>
+      </section>
+
+      <section id="receivingLibrary" class="card">
+        <h2>Saved Receiving Reports</h2>
+        <p class="hint">Draft and completed receiving inspections saved on this device appear here.</p>
+        <div class="library-toolbar">
+          <input id="receivingLibrarySearch" type="search" placeholder="Search receiving no., stock no., VIN, make or model" />
+          <select id="receivingLibraryStatus">
+            <option value="all">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+        <div class="inspection-library-table">
+          <table>
+            <thead><tr><th>Receiving No.</th><th>Stock No.</th><th>Vehicle</th><th>VIN</th><th>Result</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="receivingLibraryBody"><tr><td colspan="7" class="empty-library">No saved receiving reports yet.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="progress-panel">
+        <div><strong>Receiving Progress</strong><p id="receivingProgressText">0% completed</p></div>
+        <div class="progress-bar"><div id="receivingProgressFill"></div></div>
+      </section>
+
+      <section id="receivingDetails" class="card intro">
+        <h2>Receiving Details</h2>
+        <div class="grid">
+          <label>Receiving No.<input id="receivingNo" readonly /></label>
+          <label>Date Received<input id="receivedDate" type="date" /></label>
+          <label>Time Received<input id="receivedTime" type="time" /></label>
+          <label>Receiving Controller<input id="receivingController" value="Johan Du Plessis" /></label>
+          <label>Controller Email<input id="receivingControllerEmail" value="johan.d@eltgroup.co.za" /></label>
+          <label>Branch / Location<input id="receivingLocation" /></label>
+          <label>Supplier / OEM<input id="receivingSupplier" /></label>
+          <label>Stock Number<input id="stockNumber" /></label>
+          <label>Vehicle Make<input id="receivingMake" /></label>
+          <label>Vehicle Model<input id="receivingModel" /></label>
+          <label>VIN<input id="receivingVin" /></label>
+          <label>Engine Number<input id="receivingEngine" /></label>
+          <label>Colour<input id="receivingColour" /></label>
+          <label>Odometer<input id="receivingOdometer" type="number" /></label>
+          <label>Transport Company<input id="transportCompany" /></label>
+          <label>Driver Name<input id="driverName" /></label>
+          <label>Driver Contact<input id="driverContact" /></label>
+          <label>Delivery Note / PO<input id="deliveryReference" /></label>
+        </div>
+      </section>
+
+      <section class="card" id="arrivalPhotosSection">
+        <h2>Arrival Photographs</h2>
+        <p class="hint">Capture the vehicle condition on arrival. At least front, rear, left and right views are required before completion.</p>
+        <div id="arrivalPhotoGrid" class="arrival-photo-grid"></div>
+      </section>
+
+      <section id="receivingChecklistSection" class="card">
+        <h2>New Vehicle Visual Check Sheet</h2>
+        <p class="hint">Mark each item Pass, Fail or N/A. Failed items require a comment and photograph.</p>
+        <div id="receivingChecklist"></div>
+      </section>
+
+      <section id="receivingSummarySection" class="card">
+        <h2>Receiving Result</h2>
+        <div class="receiving-result-grid">
+          <div class="result-kpi"><span id="receivingPassCount">0</span><small>Passed</small></div>
+          <div class="result-kpi"><span id="receivingFailCount">0</span><small>Failed</small></div>
+          <div class="result-kpi"><span id="receivingUncheckedCount">37</span><small>Not Checked</small></div>
+          <div class="result-kpi result-main"><span id="receivingResult">Incomplete</span><small>System Result</small></div>
+        </div>
+        <div class="grid receiving-summary-fields">
+          <label>Final Decision
+            <select id="receivingDecision">
+              <option value="Auto">Use system result</option>
+              <option value="Accepted">Accepted</option>
+              <option value="Accepted with Damage">Accepted with Damage</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </label>
+          <label>Damage / Exception Summary<textarea id="receivingDamageSummary" rows="5" placeholder="Summarise any damage, missing items or exceptions..."></textarea></label>
+          <label>Controller Comments<textarea id="receivingComments" rows="5" placeholder="Add receiving comments..."></textarea></label>
+        </div>
+      </section>
+
+      <section id="receivingSignatureSection" class="card">
+        <h2>Receiving Controller Signature</h2>
+        <canvas id="receivingSignaturePad" width="780" height="220"></canvas>
+        <div class="actions"><button type="button" class="ghost" onclick="clearReceivingSignature()">Clear Signature</button></div>
+      </section>
+
+      <section class="actions sticky-actions receiving-actions">
+        <button type="button" onclick="saveReceivingDraft()">Save Draft</button>
+        <button type="button" class="ghost" onclick="loadLatestReceivingDraft()">Load Draft</button>
+        <button type="button" class="primary" onclick="generateReceivingReport()">Download PDF Report</button>
+        <button type="button" class="ghost" onclick="emailReceivingReport()">Email Report</button>
+      </section>
+
+      <section id="receivingReport" class="report"></section>
+    </main>
+  </div>
+  <script src="receiving.js"></script>
+</body>
+</html>

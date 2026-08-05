@@ -11,6 +11,7 @@ const checklistData = [
 
 let state = { items: {} };
 let appReady = false;
+let signaturePadHasInk = false;
 const SECTION_WEIGHTS = {
   'Vehicle Identification': 8,
   'Exterior Body': 8,
@@ -376,27 +377,108 @@ function getInspectionMetrics() {
   let passed = 0;
   let advisory = 0;
   let failed = 0;
-  let earned = 0;
-  let possible = 0;
+  let criticalFailures = 0;
+  let majorFailures = 0;
+  let minorFailures = 0;
+
+  const criticalFailureItems = [];
+  const majorFailureItems = [];
+  const minorFailureItems = [];
+
+  const sectionResults = {};
+
+  Object.keys(SECTION_WEIGHTS).forEach(sectionName => {
+    sectionResults[sectionName] = {
+      earned: 0,
+      possible: 0,
+      assessed: 0,
+      percentage: null
+    };
+  });
 
   items.forEach(item => {
-    if (item.status === 'Passed') {
+    const status = item.status || 'Not Checked';
+
+    if (
+      status === 'Not Checked' ||
+      status === 'N/A'
+    ) {
+      return;
+    }
+
+    const severity = getItemSeverity(item.item);
+    const severityWeight =
+      SEVERITY_MULTIPLIERS[severity] || 1;
+
+    if (!sectionResults[item.section]) {
+      sectionResults[item.section] = {
+        earned: 0,
+        possible: 0,
+        assessed: 0,
+        percentage: null
+      };
+    }
+
+    const section = sectionResults[item.section];
+
+    section.possible += severityWeight;
+    section.assessed++;
+
+    if (status === 'Passed') {
       passed++;
-      earned += 2;
-      possible += 2;
-    } else if (item.status === 'Advisory') {
+      section.earned += severityWeight;
+    }
+
+    if (status === 'Advisory') {
       advisory++;
-      earned += 1;
-      possible += 2;
-    } else if (item.status === 'Failed') {
+      section.earned += severityWeight * 0.5;
+    }
+
+    if (status === 'Failed') {
       failed++;
-      possible += 2;
+
+      if (severity === 'Critical') {
+        criticalFailures++;
+        criticalFailureItems.push(item.item);
+      } else if (severity === 'Major') {
+        majorFailures++;
+        majorFailureItems.push(item.item);
+      } else {
+        minorFailures++;
+        minorFailureItems.push(item.item);
+      }
     }
   });
 
-  const percentage =
-    possible > 0
-      ? Math.round((earned / possible) * 100)
+  let weightedScoreTotal = 0;
+  let activeSectionWeight = 0;
+
+  Object.entries(sectionResults).forEach(
+    ([sectionName, section]) => {
+      if (section.possible <= 0) {
+        section.percentage = null;
+        return;
+      }
+
+      section.percentage = Math.round(
+        (section.earned / section.possible) * 100
+      );
+
+      const sectionWeight =
+        SECTION_WEIGHTS[sectionName] || 0;
+
+      weightedScoreTotal +=
+        section.percentage * sectionWeight;
+
+      activeSectionWeight += sectionWeight;
+    }
+  );
+
+  let percentage =
+    activeSectionWeight > 0
+      ? Math.round(
+          weightedScoreTotal / activeSectionWeight
+        )
       : 0;
 
   let grade = 'Not Rated';
@@ -424,12 +506,46 @@ function getInspectionMetrics() {
     condition = 'Poor';
     recommendation =
       'Major repairs required before resale.';
-  } else if (possible > 0) {
+  } else if (activeSectionWeight > 0) {
     grade = 'E';
     condition = 'Critical';
     recommendation =
       'Not recommended for resale until major repairs are completed.';
   }
+
+  /*
+   * Any critical failure overrides the normal score.
+   * This prevents a mechanically unsafe vehicle from
+   * receiving an A or B because cosmetic items passed.
+   */
+  if (criticalFailures > 0) {
+    percentage = Math.min(percentage, 54);
+    grade = 'E';
+    condition = 'Critical Attention Required';
+
+    recommendation =
+      `${criticalFailures} critical defect` +
+      `${criticalFailures === 1 ? '' : 's'} identified: ` +
+      `${criticalFailureItems.join(', ')}. ` +
+      'The vehicle is not suitable for resale until repaired and reinspected.';
+  } else if (majorFailures > 0 && grade === 'A') {
+    grade = 'B';
+    condition = 'Good – Major Attention Required';
+
+    recommendation =
+      `${majorFailures} major defect` +
+      `${majorFailures === 1 ? '' : 's'} identified. ` +
+      'Repairs are required before retail resale.';
+  }
+
+  const sectionScores = {};
+
+  Object.entries(sectionResults).forEach(
+    ([sectionName, section]) => {
+      sectionScores[sectionName] =
+        section.percentage;
+    }
+  );
 
   return {
     percentage,
@@ -438,7 +554,14 @@ function getInspectionMetrics() {
     recommendation,
     passed,
     advisory,
-    failed
+    failed,
+    criticalFailures,
+    majorFailures,
+    minorFailures,
+    criticalFailureItems,
+    majorFailureItems,
+    minorFailureItems,
+    sectionScores
   };
 }
 function buildReport() {
@@ -549,6 +672,22 @@ const photoEvidenceHtml = Object.values(state.items)
     <th>Recommendation</th>
     <td>${metrics.recommendation}</td>
   </tr>
+<tr>
+  <th>Critical Failures</th>
+  <td>${metrics.criticalFailures}</td>
+
+  <th>Major Failures</th>
+  <td>${metrics.majorFailures}</td>
+</tr>
+
+<tr>
+  <th>Minor Failures</th>
+  <td>${metrics.minorFailures}</td>
+
+  <th>Scoring Method</th>
+  <td>Weighted by section and failure severity</td>
+</tr>
+
 </table>
     <h2>Inspection Results</h2>
     <table>
@@ -959,6 +1098,7 @@ function initSignature() {
   const end = () => drawing = false;
 
   canvas.addEventListener('mousedown', start);
+  signaturePadHasInk = true;
   canvas.addEventListener('mousemove', move);
   window.addEventListener('mouseup', end);
 
@@ -985,200 +1125,97 @@ function restoreSignature(dataUrl) {
 
 init();
 function calculateInspectionScore() {
-  const items = Object.values(state.items);
+  const metrics = getInspectionMetrics();
+  const items = Object.values(state.items || {});
 
-  let pass = 0;
-  let advisory = 0;
-  let fail = 0;
-  let checked = 0;
+  const completedItems = items.filter(item =>
+    item.status &&
+    item.status !== 'Not Checked'
+  ).length;
 
-  let criticalFailures = 0;
-  let majorFailures = 0;
-  let minorFailures = 0;
+  const progress = items.length
+    ? Math.round(
+        (completedItems / items.length) * 100
+      )
+    : 0;
 
-  const sectionScores = {};
-  let weightedTotal = 0;
-  let activeWeightTotal = 0;
+  const setText = (id, value) => {
+    const element = document.getElementById(id);
 
-  Object.keys(SECTION_WEIGHTS).forEach(sectionName => {
-    const sectionItems = items.filter(
-      item =>
-        item.section === sectionName &&
-        item.status !== 'N/A' &&
-        item.status !== 'Not Checked'
-    );
-
-    if (!sectionItems.length) {
-      sectionScores[sectionName] = null;
-      return;
+    if (element) {
+      element.innerText = value;
     }
-
-    let sectionEarned = 0;
-    let sectionPossible = 0;
-
-    sectionItems.forEach(item => {
-      const severity = getItemSeverity(item.item);
-      const multiplier =
-        SEVERITY_MULTIPLIERS[severity] || 1;
-
-      sectionPossible += multiplier;
-
-      if (item.status === 'Passed') {
-        sectionEarned += multiplier;
-        pass++;
-        checked++;
-      }
-
-      if (item.status === 'Advisory') {
-        sectionEarned += multiplier * 0.5;
-        advisory++;
-        checked++;
-      }
-
-      if (item.status === 'Failed') {
-        fail++;
-        checked++;
-
-        if (severity === 'Critical') {
-          criticalFailures++;
-        } else if (severity === 'Major') {
-          majorFailures++;
-        } else {
-          minorFailures++;
-        }
-      }
-    });
-
-    const sectionPercentage =
-      sectionPossible > 0
-        ? (sectionEarned / sectionPossible) * 100
-        : 0;
-
-    sectionScores[sectionName] =
-      Math.round(sectionPercentage);
-
-    const sectionWeight =
-      SECTION_WEIGHTS[sectionName];
-
-    weightedTotal +=
-      sectionPercentage * sectionWeight;
-
-    activeWeightTotal += sectionWeight;
-  });
-
-  items.forEach(item => {
-    if (item.status === 'N/A') {
-      checked++;
-    }
-  });
-
-  let percentage =
-    activeWeightTotal > 0
-      ? Math.round(weightedTotal / activeWeightTotal)
-      : 0;
-
-  let grade = 'Not Rated';
-  let condition = 'Incomplete';
-  let recommendation =
-    'Complete the inspection to generate a result.';
-
-  if (percentage >= 90) {
-    grade = 'A';
-    condition = 'Excellent';
-    recommendation =
-      'Suitable for resale with minimal or no repairs required.';
-  } else if (percentage >= 80) {
-    grade = 'B';
-    condition = 'Good';
-    recommendation =
-      'Suitable for resale after minor attention.';
-  } else if (percentage >= 70) {
-    grade = 'C';
-    condition = 'Average';
-    recommendation =
-      'Repairs required before resale.';
-  } else if (percentage >= 55) {
-    grade = 'D';
-    condition = 'Poor';
-    recommendation =
-      'Major repairs required before resale.';
-  } else if (percentage > 0) {
-    grade = 'E';
-    condition = 'Critical';
-    recommendation =
-      'Not recommended for resale until major repairs and reinspection are completed.';
-  }
-
-  /*
-   * Critical-failure protection:
-   * a vehicle with a critical safety or mechanical failure
-   * cannot receive a score above 54% or a grade better than E.
-   */
-  if (criticalFailures > 0) {
-    percentage = Math.min(percentage, 54);
-    grade = 'E';
-    condition = 'Critical Attention Required';
-    recommendation =
-      `${criticalFailures} critical defect${criticalFailures === 1 ? '' : 's'} identified. ` +
-      'Vehicle is not suitable for resale until repaired and reinspected.';
-  }
-
-  const totalItems = items.length;
-
-  const progress =
-    totalItems > 0
-      ? Math.round((checked / totalItems) * 100)
-      : 0;
-
-  latestScoreResult = {
-    percentage,
-    grade,
-    condition,
-    recommendation,
-    sectionScores,
-    criticalFailures,
-    majorFailures,
-    minorFailures
   };
 
-  document.getElementById('scorePercentage').innerText =
-    percentage + '%';
+  setText(
+    'scorePercentage',
+    metrics.percentage + '%'
+  );
 
-  document.getElementById('scoreGrade').innerText =
-    grade;
+  setText(
+    'scoreGrade',
+    metrics.grade
+  );
 
-  document.getElementById('scoreCondition').innerText =
-    condition;
+  setText(
+    'scoreCondition',
+    metrics.condition
+  );
 
-  document.getElementById('scoreRecommendation').innerText =
-    recommendation;
+  setText(
+    'scoreRecommendation',
+    metrics.recommendation
+  );
 
-  document.getElementById('passCount').innerText =
-    pass;
+  setText(
+    'passCount',
+    metrics.passed
+  );
 
-  document.getElementById('advisoryCount').innerText =
-    advisory;
+  setText(
+    'advisoryCount',
+    metrics.advisory
+  );
 
-  document.getElementById('failCount').innerText =
-    fail;
+  setText(
+    'failCount',
+    metrics.failed
+  );
 
-  document.getElementById('dashScore').innerText =
-    percentage + '%';
+  setText(
+    'dashScore',
+    metrics.percentage + '%'
+  );
 
-  document.getElementById('dashGrade').innerText =
-    grade === 'Not Rated' ? '-' : grade;
+  setText(
+    'dashGrade',
+    metrics.grade === 'Not Rated'
+      ? '-'
+      : metrics.grade
+  );
 
-  document.getElementById('dashFails').innerText =
-    fail;
+  setText(
+    'dashFails',
+    metrics.failed
+  );
 
-  document.getElementById('progressText').innerText =
-    progress + '% completed';
+  setText(
+    'progressText',
+    progress + '% completed'
+  );
 
-  document.getElementById('progressFill').style.width =
-    progress + '%';
+  const progressFill =
+    document.getElementById('progressFill');
 
-  updateGauge(percentage);
+  if (progressFill) {
+    progressFill.style.width =
+      progress + '%';
+  }
+
+  updateGauge(metrics.percentage);
   updateNavigationStatus();
+
+  return metrics;
 }
 function updateGauge(percentage) {
   const gauge = document.getElementById("dashGauge");
