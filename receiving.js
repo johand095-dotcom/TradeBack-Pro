@@ -1,10 +1,37 @@
 const RECEIVING_DATABASE_KEY = 'eltReceivingDatabase';
 const RECEIVING_ACTIVE_KEY = 'eltReceivingActive';
 const RECEIVING_DRAFT_KEY = 'eltReceivingDraft';
+const RECEIVING_IMAGE_MAX_WIDTH = 800;
+const RECEIVING_IMAGE_MAX_HEIGHT = 800;
+const RECEIVING_IMAGE_QUALITY = 0.48;
+
+const MAX_ARRIVAL_PHOTOS_PER_VIEW = 1;
+const MAX_CHECKLIST_PHOTOS_PER_ITEM = 3;
+
+function isStorageQuotaError(error) {
+  return (
+    error?.name === 'QuotaExceededError' ||
+    error?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    error?.code === 22 ||
+    error?.code === 1014
+  );
+}
+
+function showReceivingStorageFullMessage() {
+  alert(
+    'Browser storage is full.\n\n' +
+    'Please download any important reports and delete older test records or unnecessary drafts before continuing.\n\n' +
+    'The most recent photo or change could not be saved.'
+  );
+}
 
 // Update this list before publishing if additional recipients are required.
 const RECEIVING_EMAIL_RECIPIENTS = [
-  'johan.d@eltgroup.co.za'
+  'johand@eltgroup.co.za',
+  'fredb@eltgroup.co.za',
+  'chantald@eltgroup.co.za'
+ 
+
 ];
 
 const RECEIVING_CHECKLIST = [
@@ -51,11 +78,36 @@ function getReceivingDatabase() {
 
 function saveReceivingDatabase(records) {
   try {
-    localStorage.setItem(RECEIVING_DATABASE_KEY, JSON.stringify(records));
+    localStorage.setItem(
+      RECEIVING_DATABASE_KEY,
+      JSON.stringify(records)
+    );
+
     return true;
   } catch (error) {
-    console.error('Could not save receiving database:', error);
-    alert('The receiving database could not be saved. Browser storage may be full.');
+    console.error(
+      'Could not save receiving database:',
+      error
+    );
+
+    if (isStorageQuotaError(error)) {
+      showReceivingStorageFullMessage();
+    } else {
+      alert(
+        'The receiving database could not be saved.'
+      );
+    }
+
+    const status =
+      document.getElementById(
+        'receivingAutosaveStatus'
+      );
+
+    if (status) {
+      status.innerText =
+        'Storage full — record not saved';
+    }
+
     return false;
   }
 }
@@ -71,23 +123,78 @@ function upsertReceiving(record) {
   return saved;
 }
 
-function compressReceivingImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.68) {
+function compressReceivingImage(
+  file,
+  maxWidth = RECEIVING_IMAGE_MAX_WIDTH,
+  maxHeight = RECEIVING_IMAGE_MAX_HEIGHT,
+  quality = RECEIVING_IMAGE_QUALITY
+) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Unable to read image'));
+
+    reader.onerror = () => {
+      reject(
+        new Error('Unable to read the selected image.')
+      );
+    };
+
     reader.onload = event => {
       const image = new Image();
-      image.onerror = () => reject(new Error('Unable to process image'));
-      image.onload = () => {
-        const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(image.width * scale);
-        canvas.height = Math.round(image.height * scale);
-        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+
+      image.onerror = () => {
+        reject(
+          new Error('Unable to process the selected image.')
+        );
       };
+
+      image.onload = () => {
+        const scale = Math.min(
+          1,
+          maxWidth / image.width,
+          maxHeight / image.height
+        );
+
+        const width = Math.max(
+          1,
+          Math.round(image.width * scale)
+        );
+
+        const height = Math.max(
+          1,
+          Math.round(image.height * scale)
+        );
+
+        const canvas = document.createElement('canvas');
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext('2d', {
+          alpha: false
+        });
+
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+
+        context.drawImage(
+          image,
+          0,
+          0,
+          width,
+          height
+        );
+
+        resolve(
+          canvas.toDataURL(
+            'image/jpeg',
+            quality
+          )
+        );
+      };
+
       image.src = event.target.result;
     };
+
     reader.readAsDataURL(file);
   });
 }
@@ -98,14 +205,38 @@ function initReceiving() {
   renderReceivingChecklist();
   initReceivingSignature();
 
-  const draft = localStorage.getItem(RECEIVING_DRAFT_KEY);
-  if (draft) {
-    loadReceivingRecord(JSON.parse(draft), false);
-  } else {
+ const draftReceivingNo =
+    localStorage.getItem(RECEIVING_DRAFT_KEY);
+
+if (draftReceivingNo) {
+
+    const draftRecord =
+        getReceivingDatabase().find(
+            item => item.receivingNo === draftReceivingNo
+        );
+
+    if (draftRecord) {
+
+        loadReceivingRecord(draftRecord, false);
+
+    } else {
+
+        localStorage.removeItem(RECEIVING_DRAFT_KEY);
+
+        document.getElementById('receivingNo').value = createReceivingNo();
+        document.getElementById('receivedDate').valueAsDate = new Date();
+        document.getElementById('receivedTime').value =
+            new Date().toTimeString().slice(0,5);
+    }
+
+} else {
+
     document.getElementById('receivingNo').value = createReceivingNo();
     document.getElementById('receivedDate').valueAsDate = new Date();
-    document.getElementById('receivedTime').value = new Date().toTimeString().slice(0,5);
-  }
+    document.getElementById('receivedTime').value =
+        new Date().toTimeString().slice(0,5);
+
+} 
 
   receivingAppReady = true;
   calculateReceivingResult();
@@ -131,19 +262,51 @@ function renderArrivalPhotos() {
 }
 
 async function addArrivalPhoto(typeId, files) {
-  for (const file of Array.from(files)) {
-    try {
-      const image = await compressReceivingImage(file);
-      receivingState.arrivalPhotos[typeId].push(image);
+  const selectedFiles = Array.from(files || []);
+
+  if (!receivingState.arrivalPhotos[typeId]) {
+    receivingState.arrivalPhotos[typeId] = [];
+  }
+
+  if (
+    receivingState.arrivalPhotos[typeId].length >=
+    MAX_ARRIVAL_PHOTOS_PER_VIEW
+  ) {
+    alert(
+      'Only one arrival photo is allowed for each required view. Remove the current photo before adding another.'
+    );
+    return;
+  }
+
+  const file = selectedFiles[0];
+
+  if (!file) return;
+
+  try {
+    const image =
+      await compressReceivingImage(file);
+
+    receivingState.arrivalPhotos[typeId].push(image);
+    refreshArrivalPhotos(typeId);
+
+    const saved = saveReceivingDraftSilent();
+
+    if (!saved) {
+      receivingState.arrivalPhotos[typeId].pop();
       refreshArrivalPhotos(typeId);
-      saveReceivingDraftSilent();
-    } catch (error) {
-      console.error(error);
-      alert(`The photo ${file.name} could not be added.`);
+
+      alert(
+        'The photo was removed because the receiving record could not be saved.'
+      );
     }
+  } catch (error) {
+    console.error(error);
+
+    alert(
+      `The photo "${file.name}" could not be added.`
+    );
   }
 }
-
 function refreshArrivalPhotos(typeId) {
   const box = document.getElementById(`arrival_${typeId}`);
   if (!box) return;
@@ -213,16 +376,61 @@ function setReceivingComment(id,comment) {
   saveReceivingDraftSilent();
 }
 
-async function addReceivingPhotos(id,files) {
-  for (const file of Array.from(files)) {
+async function addReceivingPhotos(id, files) {
+  const selectedFiles = Array.from(files || []);
+
+  if (!receivingState.items[id]) return;
+
+  const currentPhotos =
+    receivingState.items[id].photos || [];
+
+  const remainingSlots =
+    MAX_CHECKLIST_PHOTOS_PER_ITEM -
+    currentPhotos.length;
+
+  if (remainingSlots <= 0) {
+    alert(
+      `A maximum of ${MAX_CHECKLIST_PHOTOS_PER_ITEM} photos is allowed per checklist item.`
+    );
+    return;
+  }
+
+  const filesToAdd =
+    selectedFiles.slice(0, remainingSlots);
+
+  if (selectedFiles.length > remainingSlots) {
+    alert(
+      `Only ${remainingSlots} more photo` +
+      `${remainingSlots === 1 ? '' : 's'} can be added to this item.`
+    );
+  }
+
+  for (const file of filesToAdd) {
     try {
-      const image = await compressReceivingImage(file);
+      const image =
+        await compressReceivingImage(file);
+
       receivingState.items[id].photos.push(image);
       refreshReceivingPhotos(id);
-      saveReceivingDraftSilent();
+
+      const saved = saveReceivingDraftSilent();
+
+      if (!saved) {
+        receivingState.items[id].photos.pop();
+        refreshReceivingPhotos(id);
+
+        alert(
+          'The photo was removed because the receiving record could not be saved.'
+        );
+
+        break;
+      }
     } catch (error) {
       console.error(error);
-      alert(`The photo ${file.name} could not be added.`);
+
+      alert(
+        `The photo "${file.name}" could not be added.`
+      );
     }
   }
 }
@@ -282,31 +490,120 @@ function collectReceivingFields() {
 }
 
 function saveReceivingDraftSilent() {
-  if (!receivingAppReady) return false;
-  if (!receivingField('receivingNo')) document.getElementById('receivingNo').value = createReceivingNo();
+  if (!receivingAppReady) {
+    return false;
+  }
+
+  if (!receivingField('receivingNo')) {
+    document.getElementById(
+      'receivingNo'
+    ).value = createReceivingNo();
+  }
+
   const fields = collectReceivingFields();
-  const signatureCanvas = document.getElementById('receivingSignaturePad');
-  const signature = signatureCanvas && receivingSignatureHasInk ? signatureCanvas.toDataURL() : '';
-  const metrics = calculateReceivingResult();
-  const previous = getReceivingDatabase().find(r => r.receivingNo === fields.receivingNo);
+
+  const signatureCanvas =
+    document.getElementById(
+      'receivingSignaturePad'
+    );
+
+  const signature =
+    signatureCanvas &&
+    receivingSignatureHasInk
+      ? signatureCanvas.toDataURL(
+          'image/jpeg',
+          0.45
+        )
+      : '';
+
+  const metrics =
+    calculateReceivingResult();
+
+  const previous =
+    getReceivingDatabase().find(
+      record =>
+        record.receivingNo ===
+        fields.receivingNo
+    );
+
   const record = {
     receivingNo: fields.receivingNo,
-    status: 'Draft',
+    status:
+      previous?.status === 'Completed'
+        ? 'Completed'
+        : 'Draft',
     result: metrics.finalResult,
     fields,
     state: receivingState,
     signature,
-    createdAt: previous?.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    createdAt:
+      previous?.createdAt ||
+      new Date().toISOString(),
+    completedAt:
+      previous?.completedAt || null,
+    updatedAt:
+      new Date().toISOString()
   };
-  localStorage.setItem(RECEIVING_DRAFT_KEY, JSON.stringify(record));
-  const saved = upsertReceiving(record);
-  if (saved) {
-    document.getElementById('receivingAutosaveStatus').innerText = `Saved at ${new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})}`;
+
+  try {
+    /*
+     * Store the full record only once,
+     * inside the receiving database.
+     */
+    const saved =
+      upsertReceiving(record);
+
+    if (!saved) {
+      return false;
+    }
+
+    /*
+     * The active draft now stores only
+     * the receiving number, not another
+     * complete copy of all photographs.
+     */
+    localStorage.setItem(
+      RECEIVING_DRAFT_KEY,
+      fields.receivingNo
+    );
+
+    const status =
+      document.getElementById(
+        'receivingAutosaveStatus'
+      );
+
+    if (status) {
+      status.innerText =
+        'Saved at ' +
+        new Date().toLocaleTimeString(
+          'en-ZA',
+          {
+            hour: '2-digit',
+            minute: '2-digit'
+          }
+        );
+    }
+
     renderReceivingLibrary();
     updateReceivingDashboard();
+
+    return true;
+  } catch (error) {
+    console.error(
+      'Receiving draft save failed:',
+      error
+    );
+
+    if (isStorageQuotaError(error)) {
+      showReceivingStorageFullMessage();
+    } else {
+      alert(
+        'The receiving draft could not be saved.'
+      );
+    }
+
+    return false;
   }
-  return saved;
 }
 
 function saveReceivingDraft() {
@@ -332,9 +629,37 @@ function loadReceivingRecord(record, scroll = true) {
 }
 
 function loadLatestReceivingDraft() {
-  const draft = JSON.parse(localStorage.getItem(RECEIVING_DRAFT_KEY) || 'null');
-  if (!draft) return alert('No receiving draft is saved on this device.');
-  loadReceivingRecord(draft);
+  const receivingNo =
+    localStorage.getItem(
+      RECEIVING_DRAFT_KEY
+    );
+
+  if (!receivingNo) {
+    alert(
+      'No receiving draft is saved on this device.'
+    );
+    return;
+  }
+
+  const record =
+    getReceivingDatabase().find(
+      item =>
+        item.receivingNo === receivingNo
+    );
+
+  if (!record) {
+    localStorage.removeItem(
+      RECEIVING_DRAFT_KEY
+    );
+
+    alert(
+      'The saved draft could not be found.'
+    );
+
+    return;
+  }
+
+  loadReceivingRecord(record);
 }
 
 function openReceiving(receivingNo) {
@@ -490,7 +815,15 @@ function generateReceivingReport() {
     const index=records.findIndex(r=>r.receivingNo===fields.receivingNo);
     const record={receivingNo:fields.receivingNo,status:'Completed',result:metrics.finalResult,fields,state:receivingState,signature:document.getElementById('receivingSignaturePad').toDataURL(),createdAt:index>=0?records[index].createdAt:new Date().toISOString(),completedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
     if(index>=0)records[index]=record;else records.push(record);
-    saveReceivingDatabase(records); localStorage.setItem(RECEIVING_DRAFT_KEY,JSON.stringify(record)); renderReceivingLibrary(); updateReceivingDashboard();
+    saveReceivingDatabase(records);saveReceivingDatabase(records);
+
+localStorage.setItem(
+  RECEIVING_DRAFT_KEY,
+  record.receivingNo
+);
+
+renderReceivingLibrary();
+updateReceivingDashboard();
   };
   const printWhenReady=()=>Promise.all(Array.from(printWindow.document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;}))).then(()=>{completeRecord();setTimeout(()=>{printWindow.focus();printWindow.print();},300);});
   if(printWindow.document.readyState==='complete')printWhenReady();else printWindow.onload=printWhenReady;
@@ -498,7 +831,7 @@ function generateReceivingReport() {
 
 function emailReceivingReport() {
   const metrics=calculateReceivingResult();
-  const to=RECEIVING_EMAIL_RECIPIENTS.join(',');
+ const to = RECEIVING_EMAIL_RECIPIENTS.join(';');
   const subject=encodeURIComponent(`New Vehicle Receiving Report - ${receivingField('receivingNo')} - ${receivingField('receivingVin')}`);
   const body=encodeURIComponent(`Good day,\n\nPlease find the new vehicle receiving report details below.\n\nReceiving No: ${receivingField('receivingNo')}\nStock No: ${receivingField('stockNumber')}\nVehicle: ${receivingField('receivingMake')} ${receivingField('receivingModel')}\nVIN: ${receivingField('receivingVin')}\nResult: ${metrics.finalResult}\nFailed Items: ${metrics.fail}\n\nDamage / Exception Summary:\n${receivingField('receivingDamageSummary') || 'None recorded'}\n\nPlease attach the saved PDF report before sending.\n\nRegards,\n${receivingField('receivingController')}\nELT Group (PTY) Ltd`);
   window.location.href=`mailto:${to}?subject=${subject}&body=${body}`;
