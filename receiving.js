@@ -1095,8 +1095,6 @@ updateReceivingDashboard();
   if(printWindow.document.readyState==='complete')printWhenReady();else printWindow.onload=printWhenReady;
 }
 
-function emailReceivingReport() {
-  const metrics=calculateReceivingResult();
 const isMobile =
   /Android|iPhone|iPad|iPod/i.test(
     navigator.userAgent
@@ -1105,11 +1103,10 @@ const isMobile =
 const emailSeparator =
   isMobile ? ',' : ';';
 
-const to = encodeURIComponent(
+const to =
   RECEIVING_EMAIL_RECIPIENTS.join(
     emailSeparator
-  )
-);
+  );
   const subject=encodeURIComponent(`New Vehicle Receiving Report - ${receivingField('receivingNo')} - ${receivingField('receivingVin')}`);
   const body=encodeURIComponent(`Good day,\n\nPlease find the new vehicle receiving report details below.\n\nReceiving No: ${receivingField('receivingNo')}\nStock No: ${receivingField('stockNumber')}\nVehicle: ${receivingField('receivingMake')} ${receivingField('receivingModel')}\nVIN: ${receivingField('receivingVin')}\nResult: ${metrics.finalResult}\nFailed Items: ${metrics.fail}\n\nDamage / Exception Summary:\n${receivingField('receivingDamageSummary') || 'None recorded'}\n\nPlease attach the saved PDF report before sending.\n\nRegards,\n${receivingField('receivingController')}\nELT Group (PTY) Ltd`);
   window.location.href=`mailto:${to}?subject=${subject}&body=${body}`;
