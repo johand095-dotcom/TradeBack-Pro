@@ -7,7 +7,172 @@ const RECEIVING_IMAGE_QUALITY = 0.48;
 
 const MAX_ARRIVAL_PHOTOS_PER_VIEW = 1;
 const MAX_CHECKLIST_PHOTOS_PER_ITEM = 3;
+/* ========= SUPABASE ========= */
 
+const SUPABASE_URL = 'https://upkmtznkhfbwadofaxno.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_Al-SumF_BuGOzzwpIX_yBw_LwGJUYet';
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+/* ========= AUTHENTICATION ========= */
+
+let receivingSession = null;
+
+function setReceivingLoginMessage(
+  message,
+  isError = true
+) {
+  const element =
+    document.getElementById(
+      'receivingLoginMessage'
+    );
+
+  if (!element) return;
+
+  element.innerText = message;
+  element.style.color =
+    isError ? '#b42318' : '#157347';
+}
+
+function showReceivingLogin() {
+  const screen =
+    document.getElementById(
+      'receivingLoginScreen'
+    );
+
+  if (screen) {
+    screen.style.display = 'flex';
+  }
+}
+
+function hideReceivingLogin() {
+  const screen =
+    document.getElementById(
+      'receivingLoginScreen'
+    );
+
+  if (screen) {
+    screen.style.display = 'none';
+  }
+}
+
+async function signInReceivingUser() {
+  const email =
+    document.getElementById(
+      'receivingLoginEmail'
+    )?.value.trim();
+
+  const password =
+    document.getElementById(
+      'receivingLoginPassword'
+    )?.value;
+
+  const button =
+    document.getElementById(
+      'receivingLoginButton'
+    );
+
+  if (!email || !password) {
+    setReceivingLoginMessage(
+      'Please enter your email address and password.'
+    );
+    return;
+  }
+
+  if (button) {
+    button.disabled = true;
+    button.innerText = 'Signing in...';
+  }
+
+  setReceivingLoginMessage(
+    'Checking your account...',
+    false
+  );
+
+  const { data, error } =
+    await supabaseClient.auth
+      .signInWithPassword({
+        email,
+        password
+      });
+
+  if (button) {
+    button.disabled = false;
+    button.innerText = 'Sign In';
+  }
+
+  if (error) {
+    console.error(
+      'Supabase sign-in failed:',
+      error
+    );
+
+    setReceivingLoginMessage(
+      'Sign-in failed. Please check your email address and password.'
+    );
+
+    return;
+  }
+
+  receivingSession = data.session;
+
+  setReceivingLoginMessage(
+    'Signed in successfully.',
+    false
+  );
+
+  hideReceivingLogin();
+
+  if (!receivingAppReady) {
+    initReceiving();
+  }
+}
+
+async function signOutReceivingUser() {
+  await supabaseClient.auth.signOut();
+
+  receivingSession = null;
+  receivingAppReady = false;
+
+  showReceivingLogin();
+}
+
+async function initReceivingCloudAccess() {
+  const {
+    data: { session },
+    error
+  } =
+    await supabaseClient.auth.getSession();
+
+  if (error) {
+    console.error(
+      'Could not read Supabase session:',
+      error
+    );
+  }
+
+  receivingSession = session;
+
+  if (session) {
+    hideReceivingLogin();
+    initReceiving();
+  } else {
+    showReceivingLogin();
+  }
+
+  supabaseClient.auth.onAuthStateChange(
+    (event, nextSession) => {
+      receivingSession = nextSession;
+
+      if (event === 'SIGNED_OUT') {
+        receivingAppReady = false;
+        showReceivingLogin();
+      }
+    }
+  );
+}
 function isStorageQuotaError(error) {
   return (
     error?.name === 'QuotaExceededError' ||
@@ -50,6 +215,7 @@ const ARRIVAL_PHOTO_TYPES = [
   { id: 'left', label: 'Left Side View', required: true },
   { id: 'right', label: 'Right Side View', required: true },
   { id: 'vin', label: 'VIN Plate', required: false },
+  { id: 'enginePlate', label: 'Engine Plate', required: true },
   { id: 'odometer', label: 'Odometer', required: false }
 ];
 
@@ -488,7 +654,102 @@ function collectReceivingFields() {
   ];
   return Object.fromEntries(ids.map(id => [id, receivingField(id)]));
 }
+/* ========= CLOUD RECEIVING SAVE ========= */
 
+async function saveReceivingRecordToCloud(record) {
+  if (!receivingSession) {
+    console.warn(
+      'Cloud save skipped because no user is signed in.'
+    );
+
+    return false;
+  }
+
+  const fields = record.fields || {};
+  const items = record.state?.items || {};
+
+  /*
+   * Do not send Base64 photographs into the database.
+   * Photographs will be uploaded to Supabase Storage
+   * during the next migration step.
+   */
+  const cloudChecklist = Object.fromEntries(
+    Object.entries(items).map(([id, item]) => [
+      id,
+      {
+        item: item.item,
+        status: item.status,
+        comment: item.comment || '',
+        photoCount: (item.photos || []).length
+      }
+    ])
+  );
+
+  const payload = {
+    receiving_no: record.receivingNo,
+    stock_no: fields.stockNumber || null,
+    vin: fields.receivingVin || null,
+    make: fields.receivingMake || null,
+    model: fields.receivingModel || null,
+    received_date: fields.receivedDate || null,
+    received_time: fields.receivedTime || null,
+    controller: fields.receivingController || null,
+    location: fields.receivingLocation || null,
+    status: record.status || 'Draft',
+    result: record.result || 'Incomplete',
+    damage_count: Object.values(items).filter(
+      item => item.status === 'Fail'
+    ).length,
+    report: {
+      fields,
+      checklist: cloudChecklist,
+      damageSummary:
+        fields.receivingDamageSummary || '',
+      controllerComments:
+        fields.receivingComments || ''
+    },
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabaseClient
+    .from('receivings')
+    .upsert(payload, {
+      onConflict: 'receiving_no'
+    });
+
+  if (error) {
+    console.error(
+      'Supabase receiving save failed:',
+      error
+    );
+
+    const status = document.getElementById(
+      'receivingAutosaveStatus'
+    );
+
+    if (status) {
+      status.innerText =
+        'Saved locally — cloud backup failed';
+    }
+
+    return false;
+  }
+
+  const status = document.getElementById(
+    'receivingAutosaveStatus'
+  );
+
+  if (status) {
+    status.innerText =
+      'Saved locally and backed up to cloud at ' +
+      new Date().toLocaleTimeString('en-ZA', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+  }
+
+  return true;
+}
 function saveReceivingDraftSilent() {
   if (!receivingAppReady) {
     return false;
@@ -556,7 +817,7 @@ function saveReceivingDraftSilent() {
     if (!saved) {
       return false;
     }
-
+saveReceivingRecordToCloud(record);
     /*
      * The active draft now stores only
      * the receiving number, not another
@@ -843,4 +1104,4 @@ document.addEventListener('change',event=>{if(event.target.closest('main')){calc
 document.getElementById('receivingLibrarySearch')?.addEventListener('input',renderReceivingLibrary);
 document.getElementById('receivingLibraryStatus')?.addEventListener('change',renderReceivingLibrary);
 
-initReceiving();
+initReceivingCloudAccess();

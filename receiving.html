@@ -159,6 +159,130 @@
       <section id="receivingReport" class="report"></section>
     </main>
   </div>
-  <script src="receiving.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="receiving.js"></script>
 </body>
 </html>
+<div
+  id="receivingLoginScreen"
+  style="
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: #eef4fa;
+  "
+>
+  <div
+    style="
+      width: min(430px, 100%);
+      padding: 32px;
+      background: #ffffff;
+      border: 1px solid #d6e0eb;
+      border-radius: 18px;
+      box-shadow: 0 18px 45px rgba(0, 30, 60, 0.15);
+    "
+  >
+    <div
+      style="
+        display: inline-flex;
+        margin-bottom: 18px;
+        padding: 10px 14px;
+        border: 3px solid #00447c;
+        border-radius: 10px;
+        color: #00447c;
+        font-size: 24px;
+        font-weight: 900;
+      "
+    >
+      ELT
+    </div>
+
+    <h1 style="margin: 0 0 8px; color: #001e3c;">
+      Vehicle Suite Login
+    </h1>
+
+    <p style="margin: 0 0 24px; color: #64748b;">
+      Sign in with your authorised ELT account.
+    </p>
+
+    <label
+      for="receivingLoginEmail"
+      style="display:block; margin-bottom:6px; font-weight:700;"
+    >
+      Email address
+    </label>
+
+    <input
+      id="receivingLoginEmail"
+      type="email"
+      autocomplete="username"
+      style="
+        width: 100%;
+        padding: 13px;
+        margin-bottom: 16px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        font-size: 16px;
+      "
+    />
+
+    <label
+      for="receivingLoginPassword"
+      style="display:block; margin-bottom:6px; font-weight:700;"
+    >
+      Password
+    </label>
+
+    <input
+      id="receivingLoginPassword"
+      type="password"
+      autocomplete="current-password"
+      style="
+        width: 100%;
+        padding: 13px;
+        margin-bottom: 18px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        font-size: 16px;
+      "
+      onkeydown="
+        if (event.key === 'Enter') {
+          signInReceivingUser();
+        }
+      "
+    />
+
+    <button
+      id="receivingLoginButton"
+      type="button"
+      onclick="signInReceivingUser()"
+      style="
+        width: 100%;
+        padding: 14px;
+        border: 0;
+        border-radius: 9px;
+        background: #00447c;
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+      "
+    >
+      Sign In
+    </button>
+
+    <p
+      id="receivingLoginMessage"
+      style="
+        min-height: 22px;
+        margin: 15px 0 0;
+        color: #b42318;
+        font-weight: 700;
+      "
+    ></p>
+  </div>
+</div>
