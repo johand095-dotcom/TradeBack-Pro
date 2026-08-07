@@ -207,7 +207,7 @@ const RECEIVING_EMAIL_RECIPIENTS = [
 const RECEIVING_CHECKLIST = [
   'VIN Plate','PDI Certificate','Spare Key','Spare Wheel','Central Locking',
   'Locking Mechanisms','Jack','Wheel Spanner','Tool Kit','Chock Blocks',
-  'Mirrors RH','Mirrors LH','Windscreen','Windows RH','Windows LH',
+  'Mirrors RH','Mirrors LH','Windscreen','Windows RH','Windows LH','Roof',
   'Door Handle RH','Door Handle LH','Fifth Wheel','Tail Board','Mudguards',
   'Dashboard','Curtains','Cubby Holes','Hood Lining','Driver Seat',
   'Passenger Seat','Carpets','Rear bunk bed','Air Suzie pipes','Electrical Suzie',
