@@ -196,7 +196,9 @@ const RECEIVING_EMAIL_RECIPIENTS = [
   'fredb@eltgroup.co.za',
   'chantald@eltgroup.co.za',
   'shreenathp@eltgroup.co.za',
-  'venecia@eltgroup.co.za'
+  'venecia@eltgroup.co.za',
+  'nadiab@eltgroup.co.za',
+  'paulam@eltgroup.co.za'
 
  
 
