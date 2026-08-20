@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>ELT Vehicle Suite - PDI Module</title>
+
+  <link rel="stylesheet" href="pdi.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+  <!-- =====================================================
+       LOGIN SCREEN
+  ====================================================== -->
+
+  <div id="pdiLoginScreen" class="login-screen">
+
+    <div class="login-card">
+
+      <div class="login-logo">
+        ELT
+      </div>
+
+      <h1>Vehicle Suite Login</h1>
+
+      <p>
+        Sign in with your authorised ELT account.
+      </p>
+
+      <label for="pdiLoginEmail">
+        Email Address
+      </label>
+
+      <input
+        id="pdiLoginEmail"
+        type="email"
+        autocomplete="username"
+      />
+
+      <label for="pdiLoginPassword">
+        Password
+      </label>
+
+      <input
+        id="pdiLoginPassword"
+        type="password"
+        autocomplete="current-password"
+      />
+
+      <button
+        id="pdiLoginButton"
+        type="button"
+      >
+        Sign In
+      </button>
+
+      <p id="pdiLoginMessage"></p>
+
+    </div>
+
+  </div>
+
+
+  <!-- =====================================================
+       APPLICATION SHELL
+  ====================================================== -->
+
+  <div class="app-shell">
+
+    <!-- ===================================================
+         SIDEBAR
+    ==================================================== -->
+
+    <aside class="sidebar">
+
+      <div class="sidebar-brand">
+
+        <div class="logo-mark">
+          ELT
+        </div>
+
+        <div>
+          <h1>Vehicle Suite</h1>
+          <p>PDI Operations</p>
+        </div>
+
+      </div>
+
+
+      <nav class="side-nav">
+
+        <a
+          href="#dashboard"
+          class="active"
+        >
+          🏠 PDI Dashboard
+          <span>✓</span>
+        </a>
+
+        <a href="#activeVehicles">
+          🚛 Vehicles In Progress
+          <span>○</span>
+        </a>
+
+        <a href="#workflowSection">
+          📋 Vehicle Workflow
+          <span>○</span>
+        </a>
+
+        <a href="#myActions">
+          👤 My Actions
+          <span>○</span>
+        </a>
+
+        <a href="#archiveSection">
+          📁 Completed Archive
+          <span>○</span>
+        </a>
+
+        <a href="receiving.html">
+          📦 Vehicle Receiving
+          <span>→</span>
+        </a>
+
+        <a href="index.html">
+          🚚 Tradeback Inspection
+          <span>→</span>
+        </a>
+
+      </nav>
+
+
+      <div class="sidebar-footer">
+
+        <strong>
+          ELT Group (PTY) Ltd
+        </strong>
+
+        <span>
+          Vehicle Suite - PDI v1.0
+        </span>
+
+      </div>
+
+    </aside>
+
+
+    <!-- ===================================================
+         MAIN CONTENT
+    ==================================================== -->
+
+    <main class="main-content">
+
+      <!-- =================================================
+           HEADER
+      ================================================== -->
+
+      <header class="topbar">
+
+        <div>
+
+          <h1>
+            PDI Operations
+          </h1>
+
+          <p>
+            New Vehicle Preparation & Handover Workflow
+          </p>
+
+        </div>
+
+
+        <div class="topbar-actions">
+
+          <span id="signedInUser">
+            Signed in
+          </span>
+
+          <button
+            id="refreshPdiButton"
+            class="secondary-button"
+            type="button"
+          >
+            Refresh
+          </button>
+
+          <button
+            id="signOutPdiButton"
+            class="secondary-button"
+            type="button"
+          >
+            Sign Out
+          </button>
+
+        </div>
+
+      </header>
+
+
+      <!-- =================================================
+           DASHBOARD
+      ================================================== -->
+
+      <section
+        id="dashboard"
+        class="dashboard-section"
+      >
+
+        <div class="dashboard-intro">
+
+          <h2>
+            PDI Operations Dashboard
+          </h2>
+
+          <p>
+            Track every new vehicle from Receiving
+            through PDI, repairs, paint, sales
+            sign-off and collection readiness.
+          </p>
+
+        </div>
+
+
+        <div class="metric-grid">
+
+          <div class="metric-card">
+
+            <div
+              id="metricInProgress"
+              class="metric-number"
+            >
+              0
+            </div>
+
+            <span>
+              Vehicles In Progress
+            </span>
+
+          </div>
+
+
+          <div class="metric-card">
+
+            <div
+              id="metricAwaitingPdi"
+              class="metric-number"
+            >
+              0
+            </div>
+
+            <span>
+              Awaiting PDI
+            </span>
+
+          </div>
+
+
+          <div class="metric-card">
+
+            <div
+              id="metricAwaitingPaint"
+              class="metric-number"
+            >
+              0
+            </div>
+
+            <span>
+              Awaiting Paint
+            </span>
+
+          </div>
+
+
+          <div class="metric-card">
+
+            <div
+              id="metricSalesSignoff"
+              class="metric-number"
+            >
+              0
+            </div>
+
+            <span>
+              Sales Sign-Off
+            </span>
+
+          </div>
+
+
+          <div class="metric-card">
+
+            <div
+              id="metricReadyCollection"
+              class="metric-number"
+            >
+              0
+            </div>
+
+            <span>
+              Ready for Collection
+            </span>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           MY ACTIONS
+      ================================================== -->
+
+      <section
+        id="myActions"
+        class="card"
+      >
+
+        <div class="section-heading">
+
+          <div>
+
+            <h2>
+              My Outstanding Actions
+            </h2>
+
+            <p>
+              Workflow steps currently requiring
+              action from your assigned role.
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div id="myActionsList">
+
+          <div class="empty-state">
+            No outstanding actions loaded yet.
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           ACTIVE VEHICLES
+      ================================================== -->
+
+      <section
+        id="activeVehicles"
+        class="card"
+      >
+
+        <div class="section-heading">
+
+          <div>
+
+            <h2>
+              Vehicles In Progress
+            </h2>
+
+            <p>
+              All vehicles currently moving through
+              the PDI process.
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div class="filter-row">
+
+          <input
+            id="pdiSearch"
+            type="search"
+            placeholder="
+              Search stock no., VIN,
+              receiving no., make or model
+            "
+          />
+
+
+          <select id="pdiPhaseFilter">
+
+            <option value="all">
+              All Phases
+            </option>
+
+            <option value="2">
+              Estimate / OEM / Stock
+            </option>
+
+            <option value="3">
+              PDI / Repairs / Paint
+            </option>
+
+            <option value="4">
+              Sales Sign-Off
+            </option>
+
+          </select>
+
+        </div>
+
+
+        <div class="table-wrapper">
+
+          <table>
+
+            <thead>
+
+              <tr>
+
+                <th>
+                  Stock No.
+                </th>
+
+                <th>
+                  Vehicle
+                </th>
+
+                <th>
+                  VIN
+                </th>
+
+                <th>
+                  Current Stage
+                </th>
+
+                <th>
+                  Current Step
+                </th>
+
+                <th>
+                  Responsible
+                </th>
+
+                <th>
+                  Age
+                </th>
+
+                <th>
+                  Status
+                </th>
+
+                <th>
+                  Actions
+                </th>
+
+              </tr>
+
+            </thead>
+
+
+            <tbody id="pdiVehicleTableBody">
+
+              <tr>
+
+                <td
+                  colspan="9"
+                  class="empty-table"
+                >
+                  No PDI vehicles loaded yet.
+                </td>
+
+              </tr>
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           VEHICLE WORKFLOW
+      ================================================== -->
+
+      <section
+        id="workflowSection"
+        class="card workflow-card hidden"
+      >
+
+        <div class="workflow-header">
+
+          <div>
+
+            <h2>
+              Vehicle Workflow
+            </h2>
+
+            <p id="workflowVehicleDescription">
+              Select a vehicle to open its workflow.
+            </p>
+
+          </div>
+
+
+          <button
+            id="closeWorkflowButton"
+            type="button"
+            class="secondary-button"
+          >
+            Close Workflow
+          </button>
+
+        </div>
+
+
+        <!-- VEHICLE SUMMARY -->
+
+        <div class="vehicle-summary-grid">
+
+          <div>
+
+            <span>
+              Receiving No.
+            </span>
+
+            <strong id="workflowReceivingNo">
+              -
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Stock No.
+            </span>
+
+            <strong id="workflowStockNo">
+              -
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              VIN
+            </span>
+
+            <strong id="workflowVin">
+              -
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Current Step
+            </span>
+
+            <strong id="workflowCurrentStep">
+              -
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Overall Status
+            </span>
+
+            <strong id="workflowStatus">
+              -
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Days In Process
+            </span>
+
+            <strong id="workflowAge">
+              -
+            </strong>
+
+          </div>
+
+        </div>
+
+
+        <!-- PHASE 1 -->
+
+        <div class="phase-section">
+
+          <div class="phase-heading">
+
+            <div>
+
+              <span>
+                Phase 1
+              </span>
+
+              <h3>
+                Order, Arrival & App Check-In
+              </h3>
+
+            </div>
+
+            <span class="phase-status">
+              Receiving
+            </span>
+
+          </div>
+
+          <div
+            id="phase1Steps"
+            class="workflow-steps"
+          ></div>
+
+        </div>
+
+
+        <!-- PHASE 2 -->
+
+        <div class="phase-section">
+
+          <div class="phase-heading">
+
+            <div>
+
+              <span>
+                Phase 2
+              </span>
+
+              <h3>
+                Estimate, OEM Order &
+                Stock Preparation
+              </h3>
+
+            </div>
+
+          </div>
+
+          <div
+            id="phase2Steps"
+            class="workflow-steps"
+          ></div>
+
+        </div>
+
+
+        <!-- PHASE 3 -->
+
+        <div class="phase-section">
+
+          <div class="phase-heading">
+
+            <div>
+
+              <span>
+                Phase 3
+              </span>
+
+              <h3>
+                PDI, Repairs, Paint &
+                Quality Control
+              </h3>
+
+            </div>
+
+          </div>
+
+          <div
+            id="phase3Steps"
+            class="workflow-steps"
+          ></div>
+
+        </div>
+
+
+        <!-- PHASE 4 -->
+
+        <div class="phase-section">
+
+          <div class="phase-heading">
+
+            <div>
+
+              <span>
+                Phase 4
+              </span>
+
+              <h3>
+                Sales Sign-Off &
+                Collection Readiness
+              </h3>
+
+            </div>
+
+          </div>
+
+          <div
+            id="phase4Steps"
+            class="workflow-steps"
+          ></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           COMPLETED ARCHIVE
+      ================================================== -->
+
+      <section
+        id="archiveSection"
+        class="card"
+      >
+
+        <div class="section-heading">
+
+          <div>
+
+            <h2>
+              Completed PDI Archive
+            </h2>
+
+            <p>
+              Completed vehicle workflows are retained
+              here for audit and historical reference.
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div class="filter-row">
+
+          <input
+            id="archiveSearch"
+            type="search"
+            placeholder="
+              Search completed vehicles
+            "
+          />
+
+        </div>
+
+
+        <div class="table-wrapper">
+
+          <table>
+
+            <thead>
+
+              <tr>
+
+                <th>
+                  Stock No.
+                </th>
+
+                <th>
+                  Vehicle
+                </th>
+
+                <th>
+                  VIN
+                </th>
+
+                <th>
+                  Receiving No.
+                </th>
+
+                <th>
+                  Completed
+                </th>
+
+                <th>
+                  Total Days
+                </th>
+
+                <th>
+                  Actions
+                </th>
+
+              </tr>
+
+            </thead>
+
+
+            <tbody id="pdiArchiveTableBody">
+
+              <tr>
+
+                <td
+                  colspan="7"
+                  class="empty-table"
+                >
+                  No completed PDI cases yet.
+                </td>
+
+              </tr>
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+
+  <!-- =====================================================
+       STEP ACTION MODAL
+  ====================================================== -->
+
+  <div
+    id="stepModal"
+    class="modal-overlay hidden"
+  >
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+
+        <div>
+
+          <span id="modalStepNumber">
+            Step
+          </span>
+
+          <h2 id="modalStepTitle">
+            Workflow Step
+          </h2>
+
+        </div>
+
+
+        <button
+          id="closeStepModalButton"
+          type="button"
+          class="close-button"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <div class="modal-detail">
+
+        <span>
+          Responsible
+        </span>
+
+        <strong id="modalResponsible">
+          -
+        </strong>
+
+      </div>
+
+
+      <label for="stepComments">
+        Completion Comments
+      </label>
+
+      <textarea
+        id="stepComments"
+        rows="5"
+        placeholder="
+          Add notes, references,
+          order numbers or comments...
+        "
+      ></textarea>
+
+
+      <div class="modal-actions">
+
+        <button
+          id="cancelStepButton"
+          type="button"
+          class="secondary-button"
+        >
+          Cancel
+        </button>
+
+        <button
+          id="completeStepButton"
+          type="button"
+          class="primary-button"
+        >
+          Complete Step
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <script src="pdi.js?v=1.0"></script>
+
+</body>
+</html>
