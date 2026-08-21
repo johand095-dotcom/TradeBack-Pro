@@ -537,7 +537,7 @@ initialisePdiAuthentication();
 ========================================================= */
 
 let pdiCases = [];
-
+let pdiStepTemplates = [];
 
 /* =========================================================
    HELPERS
@@ -572,7 +572,75 @@ function calculateProcessAge(startedAt) {
 
   return `${days} days`;
 }
+function calculateStepElapsedHours(startedAt) {
 
+    if (!startedAt) {
+        return 0;
+    }
+
+    const started =
+        new Date(startedAt);
+
+    const now =
+        new Date();
+
+    return Math.max(
+        0,
+        (now - started) /
+        (1000 * 60 * 60)
+    );
+}
+
+
+function getStepSlaStatus(caseRecord) {
+
+    const elapsedHours =
+        calculateStepElapsedHours(
+            caseRecord.current_step_started_at
+        );
+
+    const targetHours =
+        Number(
+            caseRecord.current_step_target_hours || 0
+        );
+
+    if (!targetHours) {
+        return {
+            status: 'No Target',
+            elapsedHours,
+            targetHours,
+            percentage: 0
+        };
+    }
+
+    const percentage =
+        (elapsedHours / targetHours) * 100;
+
+    if (percentage > 100) {
+        return {
+            status: 'Overdue',
+            elapsedHours,
+            targetHours,
+            percentage
+        };
+    }
+
+    if (percentage >= 75) {
+        return {
+            status: 'Due Soon',
+            elapsedHours,
+            targetHours,
+            percentage
+        };
+    }
+
+    return {
+        status: 'On Track',
+        elapsedHours,
+        targetHours,
+        percentage
+    };
+}
 
 function getPhaseLabel(phase) {
 
@@ -608,22 +676,56 @@ function getResponsibleForCurrentStep(caseRecord) {
 /* =========================================================
    LOAD PDI CASES
 ========================================================= */
+async function loadPdiStepTemplates() {
 
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .from('pdi_step_templates')
+            .select(`
+                step_no,
+                phase_no,
+                activity,
+                responsible_role,
+                target_hours
+            `)
+            .order('step_no');
+
+    if (error) {
+        console.error(
+            'Could not load PDI step templates:',
+            error
+        );
+
+        pdiStepTemplates = [];
+        return;
+    }
+
+    pdiStepTemplates = data || [];
+
+    console.log(
+        'PDI step templates loaded:',
+        pdiStepTemplates
+    );
+}
 async function loadPdiCases() {
 
-  if (!pdiSession) {
+    if (!pdiSession) {
 
-    console.warn(
-      'PDI cases not loaded because no user is signed in.'
-    );
+        console.warn(
+            'PDI cases not loaded because no user is signed in.'
+        );
 
-    return;
-  }
+        return;
+    }
 
+    await loadPdiStepTemplates();
 
-  const {
-    data,
-    error
+    const {
+        data,
+        error
   } =
     await supabaseClient
       .from('pdi_cases')
@@ -637,6 +739,7 @@ async function loadPdiCases() {
         workflow_status,
         current_phase,
         current_step,
+        current_step_started_at,
         started_at,
         updated_at,
         completed_at
@@ -739,7 +842,20 @@ async function attachCurrentStepDetails() {
               caseRecord.current_step
         );
 
+const currentTemplate =
+    pdiStepTemplates.find(
+        template =>
+            Number(template.step_no) ===
+            Number(caseRecord.current_step)
+    );
 
+caseRecord.current_step_target_hours =
+    Number(currentTemplate?.target_hours || 0);
+    console.log(
+    'SLA target attached:',
+    caseRecord.current_step,
+    caseRecord.current_step_target_hours
+);
       caseRecord.current_step_activity =
         currentStep?.activity || '-';
 
@@ -942,7 +1058,7 @@ function renderPdiVehicleTable() {
     tableBody.innerHTML = `
       <tr>
         <td
-          colspan="9"
+          colspan="10"
           class="empty-table"
         >
           No active PDI vehicles found.
@@ -973,7 +1089,8 @@ function renderPdiVehicleTable() {
             calculateProcessAge(
               item.started_at
             );
-
+const sla =
+    getStepSlaStatus(item);
 
           return `
             <tr>
@@ -1018,7 +1135,27 @@ function renderPdiVehicleTable() {
               <td>
                 ${age}
               </td>
+<td>
+    <span
+        class="status-badge ${
+            sla.status === 'Overdue'
+                ? 'status-overdue'
+                : sla.status === 'Due Soon'
+                    ? 'status-pending'
+                    : 'status-completed'
+        }"
+    >
+        ${sla.status}
+    </span>
 
+    <br>
+
+    <span>
+        ${sla.elapsedHours.toFixed(1)}h
+        /
+        ${sla.targetHours || '-'}h
+    </span>
+</td>
               <td>
                 <span
                   class="
