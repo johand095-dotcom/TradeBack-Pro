@@ -1366,7 +1366,7 @@ document
 let selectedPdiCaseId = null;
 let selectedPdiSteps = [];
 let selectedPdiStep = null;
-
+let pdiStepCompletionInProgress = false;
 
 /* =========================================================
    LOAD ALL STEPS FOR ONE PDI CASE
@@ -1878,6 +1878,12 @@ function closePdiStepModal() {
 
 async function completeSelectedPdiStep() {
 
+  if (pdiStepCompletionInProgress) {
+  return;
+}
+
+pdiStepCompletionInProgress = true;
+
   if (
     !selectedPdiStep ||
     !selectedPdiCaseId ||
@@ -1934,154 +1940,31 @@ Responsible role: ${selectedPdiStep.responsible_role}`
       pdiSession.user.email ||
       'Authenticated User';
 
+const {
+  data,
+  error
+} =
+  await supabaseClient
+    .rpc(
+      'complete_pdi_step',
+      {
+        target_step_id:
+          selectedPdiStep.id,
 
+        step_comments:
+          comments
+      }
+    );
+
+if (error) {
+  throw error;
+}
+
+console.log(
+  'PDI step completed securely:',
+  data
+);
     /*
-      1. Mark current step completed
-    */
-
-    const {
-      error: stepError
-    } =
-      await supabaseClient
-        .from(
-          'pdi_case_steps'
-        )
-        .update({
-          step_status:
-            'Completed',
-
-          completed_by:
-            pdiSession.user.id,
-
-          completed_by_name:
-            userEmail,
-
-          completed_at:
-            completedAt,
-
-          comments:
-            comments,
-
-          updated_at:
-            completedAt
-        })
-        .eq(
-          'id',
-          selectedPdiStep.id
-        );
-
-
-    if (stepError) {
-
-      throw stepError;
-    }
-
-
-    const currentStepNo =
-      Number(
-        selectedPdiStep.step_no
-      );
-
-
-    /*
-      2. Final step = archive case
-    */
-
-    if (currentStepNo >= 39) {
-
-      const {
-        error: caseError
-      } =
-        await supabaseClient
-          .from(
-            'pdi_cases'
-          )
-          .update({
-
-            workflow_status:
-              'Completed',
-
-            current_phase:
-              4,
-
-            current_step:
-              39,
-
-            completed_at:
-              completedAt,
-
-            updated_at:
-              completedAt
-          })
-          .eq(
-            'id',
-            selectedPdiCaseId
-          );
-
-
-      if (caseError) {
-        throw caseError;
-      }
-
-    } else {
-
-      /*
-        3. Find next workflow step
-      */
-
-      const nextStep =
-        selectedPdiSteps.find(
-          item =>
-            Number(
-              item.step_no
-            ) >
-            currentStepNo &&
-            item.step_status !==
-              'Completed'
-        );
-
-
-      if (!nextStep) {
-
-        throw new Error(
-          'No next PDI workflow step was found.'
-        );
-      }
-
-
-      const {
-        error: caseError
-      } =
-        await supabaseClient
-          .from(
-            'pdi_cases'
-          )
-          .update({
-
-            current_step:
-              nextStep.step_no,
-
-            current_phase:
-              nextStep.phase_no,
-
-            workflow_status:
-              'In Progress',
-
-            updated_at:
-              completedAt
-          })
-          .eq(
-            'id',
-            selectedPdiCaseId
-          );
-
-
-      if (caseError) {
-        throw caseError;
-      }
-    }
-
-
     closePdiStepModal();
 
 
@@ -2132,6 +2015,8 @@ Responsible role: ${selectedPdiStep.responsible_role}`
     );
 
   } finally {
+
+    pdiStepCompletionInProgress = false;
 
     if (button) {
 
