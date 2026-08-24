@@ -543,6 +543,76 @@ let pdiStepTemplates = [];
    HELPERS
 ========================================================= */
 
+async function loadReceivingPhotos(receivingNo) {
+
+    if (!receivingNo) {
+        return [];
+    }
+
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .from('receiving_photos')
+            .select(`
+                id,
+                receiving_no,
+                photo_type,
+                storage_path,
+                latitude,
+                longitude,
+                captured_at,
+                location_text,
+                street_address,
+                created_at
+            `)
+            .eq(
+                'receiving_no',
+                receivingNo
+            )
+            .order(
+                'created_at',
+                {
+                    ascending: true
+                }
+            );
+
+    if (error) {
+        console.error(
+            'Could not load receiving photos:',
+            error
+        );
+
+        return [];
+    }
+
+    return data || [];
+}
+async function getReceivingPhotoSignedUrl(
+    storagePath
+) {
+
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .storage
+            .from(
+                'vehicle-receiving-photos'
+            )
+            .createSignedUrl(
+                storagePath,
+                300
+            );
+
+    if (error) {
+        throw error;
+    }
+
+    return data?.signedUrl || '';
+}
 function calculateProcessAge(startedAt) {
 
   if (!startedAt) return '-';
@@ -1385,7 +1455,7 @@ document
    TEMPORARY WORKFLOW PLACEHOLDER
 ========================================================= */
 
-function openPdiWorkflow(caseId) {
+async function openPdiWorkflow(caseId) {
 
   console.log(
     'Open workflow requested for PDI case:',
@@ -1410,6 +1480,19 @@ function openPdiWorkflow(caseId) {
     return;
   }
 
+const receivingPhotos =
+    await loadReceivingPhotos(
+        selectedCase.receiving_no
+    );
+
+console.log(
+    'Receiving photos loaded:',
+    receivingPhotos
+);
+
+await renderWorkflowReceivingPhotos(
+    receivingPhotos
+);
 
   document
     .getElementById(
@@ -2807,4 +2890,245 @@ async function renderMyPdiActions() {
         );
       }
     );
+}
+
+async function renderWorkflowReceivingPhotos(
+    photos
+) {
+
+    const section =
+        document.getElementById(
+            'workflowReceivingPhotosSection'
+        );
+
+    const grid =
+        document.getElementById(
+            'workflowReceivingPhotosGrid'
+        );
+
+    if (!section || !grid) {
+        return;
+    }
+
+    grid.innerHTML = '';
+
+    if (!photos || !photos.length) {
+
+        section.classList.add(
+            'hidden'
+        );
+
+        return;
+    }
+
+    const photoLabels = {
+        front: 'Front View',
+        rear: 'Rear View',
+        left: 'Left Side View',
+        right: 'Right Side View',
+        vin: 'VIN Plate',
+        engine: 'Engine Plate',
+        odometer: 'Odometer'
+    };
+
+    for (const photo of photos) {
+
+        try {
+
+            const signedUrl =
+                await getReceivingPhotoSignedUrl(
+                    photo.storage_path
+                );
+
+            if (!signedUrl) {
+                continue;
+            }
+
+            const card =
+                document.createElement(
+                    'div'
+                );
+
+            card.className =
+                'workflow-photo-card';
+
+            const label =
+                photoLabels[
+                    photo.photo_type
+                ] ||
+                photo.photo_type;
+
+            const capturedText =
+                photo.captured_at
+                    ? formatPdiDateTime(
+                        photo.captured_at
+                    )
+                    : '';
+
+            card.innerHTML = `
+                <div class="workflow-photo-title">
+                    ${escapePdiHtml(label)}
+                </div>
+
+                <img
+                    src="${signedUrl}"
+                    alt="${escapePdiHtml(label)}"
+                    class="workflow-photo-image"
+                >
+
+                <div class="workflow-photo-meta">
+                    ${
+                        capturedText
+                            ? `
+                                <div>
+                                    Captured:
+                                    ${escapePdiHtml(
+                                        capturedText
+                                    )}
+                                </div>
+                            `
+                            : ''
+                    }
+
+                    ${
+                        photo.location_text
+                            ? `
+                                <div>
+                                    ${escapePdiHtml(
+                                        photo.location_text
+                                    )}
+                                </div>
+                            `
+                            : ''
+                    }
+                </div>
+
+                <div class="workflow-photo-actions">
+
+                    <button
+                        type="button"
+                        class="secondary-button workflow-photo-view-button"
+                    >
+                        View
+                    </button>
+
+                    <button
+                        type="button"
+                        class="secondary-button workflow-photo-download-button"
+                    >
+                        Download
+                    </button>
+
+                </div>
+            `;
+
+            const viewButton =
+                card.querySelector(
+                    '.workflow-photo-view-button'
+                );
+
+            const downloadButton =
+                card.querySelector(
+                    '.workflow-photo-download-button'
+                );
+
+            viewButton?.addEventListener(
+                'click',
+                () => {
+
+                    window.open(
+                        signedUrl,
+                        '_blank',
+                        'noopener'
+                    );
+                }
+            );
+
+            downloadButton?.addEventListener(
+                'click',
+                async () => {
+
+                    try {
+
+                        const response =
+                            await fetch(
+                                signedUrl
+                            );
+
+                        if (!response.ok) {
+                            throw new Error(
+                                'Could not download photo.'
+                            );
+                        }
+
+                        const blob =
+                            await response.blob();
+
+                        const objectUrl =
+                            URL.createObjectURL(
+                                blob
+                            );
+
+                        const link =
+                            document.createElement(
+                                'a'
+                            );
+
+                        link.href =
+                            objectUrl;
+
+                        link.download =
+                            `${photo.photo_type}.jpg`;
+
+                        document.body
+                            .appendChild(link);
+
+                        link.click();
+
+                        link.remove();
+
+                        URL.revokeObjectURL(
+                            objectUrl
+                        );
+
+                    } catch (error) {
+
+                        console.error(
+                            'Could not download receiving photo:',
+                            error
+                        );
+
+                        alert(
+                            'The photo could not be downloaded.'
+                        );
+                    }
+                }
+            );
+
+            grid.appendChild(
+                card
+            );
+
+        } catch (error) {
+
+            console.error(
+                'Could not display receiving photo:',
+                photo,
+                error
+            );
+        }
+    }
+
+    if (grid.children.length) {
+
+        section.classList.remove(
+            'hidden'
+        );
+
+    } else {
+
+        section.classList.add(
+            'hidden'
+        );
+    }
 }

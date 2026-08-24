@@ -453,11 +453,7 @@ context.fillText(
     textY
 );
 
-      context.fillText(
-        stampData.dateTimeText || '',
-        padding,
-        panelY + padding + (lineHeight * 2)
-    );
+
 }
 
         resolve(
@@ -580,6 +576,30 @@ function getCurrentGpsPosition() {
     });
 }
 
+const RECEIVING_BRANCH_ADDRESSES = {
+    'JHB South': {
+        locationText: 'Johannesburg, Gauteng, South Africa',
+        streetAddress: ''
+    }
+};
+
+function getReceivingBranchLocation() {
+    const branchInput =
+        document.getElementById('branch') ||
+        document.getElementById('branchLocation') ||
+        document.querySelector('[name="branch"]') ||
+        document.querySelector('[name="branch_location"]');
+
+    const branchName =
+        branchInput?.value?.trim() || '';
+
+    return {
+        branchName,
+        branchLocation:
+            RECEIVING_BRANCH_ADDRESSES[branchName] || null
+    };
+}
+
 async function reverseGeocodeLocation(
     latitude,
     longitude
@@ -695,6 +715,168 @@ const streetAddress =
     }
 }
 
+function dataUrlToBlob(dataUrl) {
+
+    const parts =
+        dataUrl.split(',');
+
+    const mimeMatch =
+        parts[0].match(
+            /:(.*?);/
+        );
+
+    const mimeType =
+        mimeMatch
+            ? mimeMatch[1]
+            : 'image/jpeg';
+
+    const binary =
+        atob(parts[1]);
+
+    const bytes =
+        new Uint8Array(
+            binary.length
+        );
+
+    for (
+        let i = 0;
+        i < binary.length;
+        i++
+    ) {
+        bytes[i] =
+            binary.charCodeAt(i);
+    }
+
+    return new Blob(
+        [bytes],
+        {
+            type: mimeType
+        }
+    );
+}
+
+async function uploadReceivingPhoto(
+    receivingNo,
+    typeId,
+    stampedImage,
+    gpsData,
+    locationData
+) {
+
+    if (
+        !receivingNo ||
+        !typeId ||
+        !stampedImage
+    ) {
+        throw new Error(
+            'Missing receiving photo upload data.'
+        );
+    }
+
+    const blob =
+        dataUrlToBlob(
+            stampedImage
+        );
+
+    const safeType =
+        String(typeId)
+            .toLowerCase()
+            .replace(
+                /[^a-z0-9]+/g,
+                '-'
+            )
+            .replace(
+                /^-+|-+$/g,
+                ''
+            );
+
+    const storagePath =
+        `${receivingNo}/${safeType}.jpg`;
+
+    const {
+        error: uploadError
+    } =
+        await supabaseClient
+            .storage
+            .from(
+                'vehicle-receiving-photos'
+            )
+            .upload(
+                storagePath,
+                blob,
+                {
+                    contentType:
+                        'image/jpeg',
+
+                    upsert:
+                        true
+                }
+            );
+
+    if (uploadError) {
+        throw uploadError;
+    }
+
+    const {
+        error: metadataError
+    } =
+        await supabaseClient
+            .from(
+                'receiving_photos'
+            )
+            .upsert(
+                {
+                    receiving_no:
+                        receivingNo,
+
+                    photo_type:
+                        typeId,
+
+                    storage_path:
+                        storagePath,
+
+                    latitude:
+                        gpsData?.latitude ??
+                        null,
+
+                    longitude:
+                        gpsData?.longitude ??
+                        null,
+
+                    captured_at:
+                        gpsData?.capturedAt ??
+                        null,
+
+                    location_text:
+                        locationData?.locationText ??
+                        null,
+
+                    street_address:
+                        locationData?.streetAddress ??
+                        null,
+
+                    uploaded_by:
+    receivingSession?.user?.id ??
+    null
+                },
+                {
+                    onConflict:
+                        'receiving_no,photo_type'
+                }
+            );
+
+    if (metadataError) {
+        throw metadataError;
+    }
+
+    console.log(
+        'Receiving photo uploaded:',
+        storagePath
+    );
+
+    return storagePath;
+}
+
 async function addArrivalPhoto(typeId, files) {
   const selectedFiles = Array.from(files || []);
 
@@ -770,29 +952,41 @@ const dateTimeText =
     ) + ' GMT +02:00';
 
 const stampData =
-    gpsData
-        ? {
-            latitude:
-                gpsData.latitude,
+    {
+        latitude:
+            -26.2338,
 
-            longitude:
-                gpsData.longitude,
+        longitude:
+            28.042861,
 
-            locationText:
-    locationData?.locationText ||
-    '',
-    streetAddress:
-    locationData?.streetAddress ||
-    '',
+        locationText:
+            'Johannesburg, Gauteng, South Africa',
 
-            dateTimeText
-        }
-        : null;
+        streetAddress:
+            '101 Turffontein Rd, Turffontein, Johannesburg, Gauteng, 2190, South Africa',
+
+        dateTimeText
+    };
+   
     const image =
     await compressReceivingImage(
         file,
         stampData
     );
+
+const receivingNo =
+    document
+        .getElementById('receivingNo')
+        ?.value
+        ?.trim();
+
+await uploadReceivingPhoto(
+    receivingNo,
+    typeId,
+    image,
+    gpsData,
+    locationData
+);
 
     receivingState.arrivalPhotos[typeId].push(image);
     refreshArrivalPhotos(typeId);
