@@ -1527,7 +1527,11 @@ async function loadPdiWorkflowSteps(caseId) {
         step_status,
         completed_by_name,
         completed_at,
-        comments
+        comments,
+ reopened_by,
+reopened_by_name,
+reopened_at,
+reopen_reason
       `)
       .eq(
         'pdi_case_id',
@@ -1754,7 +1758,26 @@ function buildPdiStepHtml(step) {
       `
       : '';
 
-
+const reopenAuditHtml =
+    step.reopened_at
+        ? `
+            <span class="workflow-step-reopen-audit">
+                Reopened by ${
+                    escapePdiHtml(
+                        step.reopened_by_name || 'Administrator'
+                    )
+                }${
+                    step.reopened_at
+                        ? ` · ${formatPdiDateTime(step.reopened_at)}`
+                        : ''
+                }${
+                    step.reopen_reason
+                        ? ` · Reason: ${escapePdiHtml(step.reopen_reason)}`
+                        : ''
+                }
+            </span>
+        `
+        : '';
 const canAction =
   userCanHandlePdiRole(
     step.responsible_role
@@ -1766,53 +1789,68 @@ const canAction =
 
 let actionButton = '';
 
+const canReopen =
+    isCompleted &&
+    pdiUserProfile?.is_admin === true;
 
-if (
+if (canReopen) {
+
+    actionButton = `
+        <button
+            type="button"
+            class="action-button reopen-pdi-step-button"
+            data-step-id="${step.id}"
+        >
+            Reverse Completion
+        </button>
+    `;
+
+} else if (
     isCurrentPhase &&
     !isCompleted &&
     canAction
 ) {
 
-  actionButton = `
-    <button
-      type="button"
-      class="action-button complete-pdi-step-button"
-      data-step-id="${step.id}"
-    >
-      Complete
-    </button>
-  `;
+    actionButton = `
+        <button
+            type="button"
+            class="action-button complete-pdi-step-button"
+            data-step-id="${step.id}"
+        >
+            Complete
+        </button>
+    `;
 
 } else if (
-  isCurrent &&
-  !isCompleted &&
-  !canAction
+    isCurrentPhase &&
+    !isCompleted &&
+    !canAction
 ) {
 
-  actionButton = `
-    <span
-      class="status-badge status-pending"
-      title="This step must be completed by ${escapePdiHtml(
-        step.responsible_role
-      )}"
-    >
-      Awaiting ${
-        escapePdiHtml(
-          step.responsible_role
-        )
-      }
-    </span>
-  `;
+    actionButton = `
+        <span
+            class="status-badge status-pending"
+            title="This step must be completed by ${escapePdiHtml(
+                step.responsible_role
+            )}"
+        >
+            Awaiting ${
+                escapePdiHtml(
+                    step.responsible_role
+                )
+            }
+        </span>
+    `;
 
 } else {
 
-  actionButton = `
-    <span
-      class="status-badge ${statusClass}"
-    >
-      ${statusLabel}
-    </span>
-  `;
+    actionButton = `
+        <span
+            class="status-badge ${statusClass}"
+        >
+            ${statusLabel}
+        </span>
+    `;
 }
 
 
@@ -1835,20 +1873,20 @@ if (
           ${escapePdiHtml(step.activity)}
         </strong>
 
-        ${
-          completedDetail
-        }
+        ${completedDetail}
 
-        ${
-          step.comments
-            ? `
-              <span>
+${reopenAuditHtml}
+
+${
+    step.comments
+        ? `
+            <span>
                 Notes:
                 ${escapePdiHtml(step.comments)}
-              </span>
-            `
-            : ''
-        }
+            </span>
+        `
+        : ''
+}
 
       </div>
 
@@ -1906,6 +1944,116 @@ function attachPdiStepButtons() {
     );
 }
 
+document.addEventListener(
+    'click',
+    async event => {
+
+        const button =
+            event.target.closest(
+                '.reopen-pdi-step-button'
+            );
+
+        if (!button) {
+            return;
+        }
+
+
+        const stepId =
+            Number(
+                button.dataset.stepId
+            );
+
+
+        const reason =
+            prompt(
+                'Please enter the reason for reversing this completion:'
+            );
+
+
+        if (reason === null) {
+            return;
+        }
+
+
+        if (reason.trim().length < 3) {
+
+            alert(
+                'Please enter a valid reason.'
+            );
+
+            return;
+        }
+
+
+        button.disabled = true;
+
+        button.textContent =
+            'Reopening...';
+
+
+        try {
+
+            const {
+                data,
+                error
+            } =
+                await supabaseClient
+                    .rpc(
+                        'reopen_pdi_step',
+                        {
+                            target_step_id:
+                                stepId,
+
+                            reopen_reason_text:
+                                reason.trim()
+                        }
+                    );
+
+
+            if (error) {
+                throw error;
+            }
+
+
+            console.log(
+                'PDI step reopened:',
+                data
+            );
+
+
+            await loadPdiCases();
+
+
+            if (selectedPdiCaseId) {
+
+                await openPdiWorkflow(
+                    selectedPdiCaseId
+                );
+            }
+
+
+        } catch (error) {
+
+            console.error(
+                'Could not reopen PDI step:',
+                error
+            );
+
+
+            alert(
+                'The completed step could not be reversed. Please check the browser console.'
+            );
+
+
+        } finally {
+
+            button.disabled = false;
+
+            button.textContent =
+                'Reverse Completion';
+        }
+    }
+);
 
 /* =========================================================
    OPEN STEP MODAL
