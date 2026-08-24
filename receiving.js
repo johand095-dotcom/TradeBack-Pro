@@ -296,10 +296,11 @@ function upsertReceiving(record) {
 }
 
 function compressReceivingImage(
-  file,
-  maxWidth = RECEIVING_IMAGE_MAX_WIDTH,
-  maxHeight = RECEIVING_IMAGE_MAX_HEIGHT,
-  quality = RECEIVING_IMAGE_QUALITY
+    file,
+    stampData = null,
+    maxWidth = RECEIVING_IMAGE_MAX_WIDTH,
+    maxHeight = RECEIVING_IMAGE_MAX_HEIGHT,
+    quality = RECEIVING_IMAGE_QUALITY
 ) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -355,6 +356,109 @@ function compressReceivingImage(
           width,
           height
         );
+
+if (stampData) {
+
+    const padding =
+        Math.max(
+            18,
+            Math.round(width * 0.02)
+        );
+
+    const fontSize =
+        Math.max(
+            22,
+            Math.round(width * 0.026)
+        );
+
+    const lineHeight =
+        Math.round(fontSize * 1.35);
+
+    const hasStreetAddress =
+    Boolean(
+        stampData.streetAddress
+    );
+
+const textLineCount =
+    hasStreetAddress
+        ? 4
+        : 3;
+
+const panelHeight =
+    (lineHeight * textLineCount) +
+    (padding * 2);
+
+    const panelY =
+        height - panelHeight;
+
+    context.fillStyle =
+        'rgba(0, 0, 0, 0.70)';
+
+    context.fillRect(
+        0,
+        panelY,
+        width,
+        panelHeight
+    );
+
+    context.fillStyle =
+        '#ffffff';
+
+    context.font =
+        `bold ${fontSize}px Arial`;
+
+    context.textBaseline =
+        'top';
+
+let textY =
+    panelY + padding;
+
+if (stampData.locationText) {
+
+    context.fillText(
+        stampData.locationText,
+        padding,
+        textY
+    );
+
+    textY += lineHeight;
+}
+
+if (stampData.streetAddress) {
+
+    context.fillText(
+        stampData.streetAddress,
+        padding,
+        textY
+    );
+
+    textY += lineHeight;
+}
+
+context.fillText(
+    `Lat ${Number(
+        stampData.latitude
+    ).toFixed(6)}°  Long ${Number(
+        stampData.longitude
+    ).toFixed(6)}°`,
+    padding,
+    textY
+);
+
+textY += lineHeight;
+
+context.fillText(
+    stampData.dateTimeText || '',
+    padding,
+    textY
+);
+
+      context.fillText(
+        stampData.dateTimeText || '',
+        padding,
+        panelY + padding + (lineHeight * 2)
+    );
+}
 
         resolve(
           canvas.toDataURL(
@@ -433,6 +537,164 @@ function renderArrivalPhotos() {
   });
 }
 
+function getCurrentGpsPosition() {
+    return new Promise((resolve, reject) => {
+
+        if (!navigator.geolocation) {
+            reject(
+                new Error(
+                    'Geolocation is not supported on this device.'
+                )
+            );
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            position => {
+
+                resolve({
+                    latitude:
+                        position.coords.latitude,
+
+                    longitude:
+                        position.coords.longitude,
+
+                    accuracy:
+                        position.coords.accuracy,
+
+                    capturedAt:
+                        new Date().toISOString()
+                });
+            },
+
+            error => {
+                reject(error);
+            },
+
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0
+            }
+        );
+    });
+}
+
+async function reverseGeocodeLocation(
+    latitude,
+    longitude
+) {
+
+    try {
+
+        const url =
+            `https://nominatim.openstreetmap.org/reverse` +
+            `?format=jsonv2` +
+            `&lat=${encodeURIComponent(latitude)}` +
+            `&lon=${encodeURIComponent(longitude)}` +
+            `&zoom=18` +
+            `&addressdetails=1`;
+
+        const response =
+            await fetch(
+                url,
+                {
+                    headers: {
+                        'Accept-Language': 'en'
+                    }
+                }
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                `Reverse geocoding failed: ${response.status}`
+            );
+        }
+
+        const data =
+            await response.json();
+
+        const address =
+            data.address || {};
+
+        const city =
+            address.city ||
+            address.town ||
+            address.village ||
+            address.municipality ||
+            '';
+
+        const province =
+            address.state ||
+            '';
+
+        const country =
+            address.country ||
+            '';
+
+        const locationText =
+            [
+                city,
+                province,
+                country
+            ]
+                .filter(Boolean)
+                .join(', ');
+
+        const houseNumber =
+    address.house_number || '';
+
+const road =
+    address.road ||
+    address.street ||
+    '';
+
+const suburb =
+    address.suburb ||
+    address.neighbourhood ||
+    address.city_district ||
+    '';
+
+const postcode =
+    address.postcode ||
+    '';
+
+const streetAddress =
+    [
+        [houseNumber, road]
+            .filter(Boolean)
+            .join(' '),
+
+        suburb,
+
+        city,
+
+        postcode,
+
+        country
+    ]
+        .filter(Boolean)
+        .join(', ');
+
+        return {
+            locationText,
+            streetAddress
+        };
+
+    } catch (error) {
+
+        console.warn(
+            'Reverse geocoding unavailable:',
+            error
+        );
+
+        return {
+            locationText: '',
+            streetAddress: ''
+        };
+    }
+}
+
 async function addArrivalPhoto(typeId, files) {
   const selectedFiles = Array.from(files || []);
 
@@ -455,8 +717,82 @@ async function addArrivalPhoto(typeId, files) {
   if (!file) return;
 
   try {
+    let gpsData = null;
+    let locationData = null;
+
+try {
+
+    gpsData =
+        await getCurrentGpsPosition();
+
+      locationData =
+    await reverseGeocodeLocation(
+        gpsData.latitude,
+        gpsData.longitude
+    );
+
+console.log(
+    'Arrival photo location:',
+    locationData
+);  
+
+    console.log(
+        'Arrival photo GPS:',
+        gpsData
+    );
+
+} catch (gpsError) {
+
+    console.warn(
+        'GPS could not be captured:',
+        gpsError
+    );
+}
+const capturedDate =
+    new Date(
+        gpsData?.capturedAt ||
+        new Date().toISOString()
+    );
+
+const dateTimeText =
+    capturedDate.toLocaleString(
+        'en-ZA',
+        {
+            day: '2-digit',
+            month: '2-digit',
+            year: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+            timeZone:
+                'Africa/Johannesburg'
+        }
+    ) + ' GMT +02:00';
+
+const stampData =
+    gpsData
+        ? {
+            latitude:
+                gpsData.latitude,
+
+            longitude:
+                gpsData.longitude,
+
+            locationText:
+    locationData?.locationText ||
+    '',
+    streetAddress:
+    locationData?.streetAddress ||
+    '',
+
+            dateTimeText
+        }
+        : null;
     const image =
-      await compressReceivingImage(file);
+    await compressReceivingImage(
+        file,
+        stampData
+    );
 
     receivingState.arrivalPhotos[typeId].push(image);
     refreshArrivalPhotos(typeId);
