@@ -1760,14 +1760,17 @@ const canAction =
     step.responsible_role
   );
 
+  const isCurrentPhase =
+  Number(step.phase_no) ===
+  Number(selectedCase?.current_phase);
 
 let actionButton = '';
 
 
 if (
-  isCurrent &&
-  !isCompleted &&
-  canAction
+    isCurrentPhase &&
+    !isCompleted &&
+    canAction
 ) {
 
   actionButton = `
