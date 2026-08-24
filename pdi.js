@@ -1314,13 +1314,13 @@ function renderPdiArchive() {
 
               <td>
 
-                <button
-                  type="button"
-                  class="secondary-button"
-                  disabled
-                >
-                  View
-                </button>
+               <button
+    type="button"
+    class="secondary-button view-pdi-archive-button"
+    data-case-id="${item.id}"
+>
+    View
+</button>
 
               </td>
 
@@ -1331,6 +1331,31 @@ function renderPdiArchive() {
       .join('');
 }
 
+document.addEventListener(
+    'click',
+    async event => {
+
+        const button =
+            event.target.closest(
+                '.view-pdi-archive-button'
+            );
+
+        if (!button) {
+            return;
+        }
+
+        const caseId =
+            Number(
+                button.dataset.caseId
+            );
+
+        if (!caseId) {
+            return;
+        }
+
+        await openPdiWorkflow(caseId);
+    }
+);
 
 /* =========================================================
    FILTER EVENTS
