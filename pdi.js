@@ -2461,7 +2461,24 @@ function userCanHandlePdiRole(
     )
       .toLowerCase()
       .trim();
+const isDriverStep =
+    required === 'driver';
 
+const userIsPdiController =
+    roles.some(
+        role =>
+            String(role)
+                .toLowerCase()
+                .trim() ===
+            'pdi controller'
+    );
+
+if (
+    isDriverStep &&
+    userIsPdiController
+) {
+    return true;
+}
   return roles.some(
     role => {
 
