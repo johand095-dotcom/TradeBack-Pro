@@ -660,8 +660,321 @@
 
         </div>
 
+        <!-- BODYBUILDER PHASE -->
+<div
+    id="bodybuilderPhaseSection"
+    class="phase-section"
+>
+    <div class="phase-heading">
 
-        <!-- PHASE 2 -->
+        <div>
+            <span>
+                Phase 2
+            </span>
+
+            <h3>
+                Bodybuilder Fitment
+            </h3>
+        </div>
+
+        <span
+            id="bodybuilderPhaseStatus"
+            class="phase-status"
+        >
+            Pending Decision
+        </span>
+
+    </div>
+
+    <div
+        id="bodybuilderWorkflowContent"
+        class="workflow-steps"
+    >
+
+        <div
+            id="bodybuilderDecisionPanel"
+            class="bodybuilder-panel"
+        >
+
+            <h4>
+                Bodybuilder Requirement
+            </h4>
+
+            <p>
+                Confirm whether this vehicle requires bodybuilder fitment
+                before continuing with the PDI process.
+            </p>
+
+            <div class="bodybuilder-field">
+
+                <label for="bodybuilderRequired">
+                    Bodybuilder Required?
+                </label>
+
+                <select id="bodybuilderRequired">
+                    <option value="">
+                        Select...
+                    </option>
+
+                    <option value="yes">
+                        Yes
+                    </option>
+
+                    <option value="not_applicable">
+                        Not Applicable
+                    </option>
+                </select>
+
+            </div>
+
+            <div
+                id="bodybuilderDetailsFields"
+                class="hidden"
+            >
+
+                <div class="bodybuilder-field">
+
+                    <label for="bodybuilderSupplier">
+                        Supplier / Bodybuilder
+                    </label>
+
+                    <input
+                        type="text"
+                        id="bodybuilderSupplier"
+                        placeholder="Enter supplier name"
+                    >
+
+                </div>
+
+                <div class="bodybuilder-field">
+
+                    <label for="bodybuilderDescription">
+                        Body Being Fitted
+                    </label>
+
+                    <input
+                        type="text"
+                        id="bodybuilderDescription"
+                        placeholder="e.g. Dropside body, tipper body, tautliner"
+                    >
+
+                </div>
+
+                <div class="bodybuilder-field">
+
+                    <label for="bodybuilderEstimatedDays">
+                        Estimated Fitment Days
+                    </label>
+
+                    <input
+                        type="number"
+                        id="bodybuilderEstimatedDays"
+                        min="1"
+                        step="1"
+                        placeholder="Enter estimated days"
+                    >
+
+                </div>
+
+            </div>
+
+            <button
+                type="button"
+                id="saveBodybuilderDetailsBtn"
+                class="workflow-action-btn"
+            >
+                Save Bodybuilder Details
+            </button>
+
+        </div>
+<!-- BODYBUILDER VEHICLE CHECK-OUT -->
+<div
+    id="bodybuilderCheckoutPanel"
+    class="bodybuilder-panel hidden"
+>
+    <h4>
+        Vehicle Check-Out
+    </h4>
+
+    <p>
+        Capture the vehicle condition before it leaves ELT for the bodybuilder.
+        All required photographs must be taken before the vehicle is dispatched.
+    </p>
+
+    <div class="bodybuilder-photo-grid">
+
+        <div class="bodybuilder-photo-card">
+            <label>
+                Front View
+            </label>
+
+            <input
+                type="file"
+                id="bodybuilderCheckoutFront"
+                accept="image/*"
+                capture="environment"
+            >
+        </div>
+
+        <div class="bodybuilder-photo-card">
+            <label>
+                Rear View
+            </label>
+
+            <input
+                type="file"
+                id="bodybuilderCheckoutRear"
+                accept="image/*"
+                capture="environment"
+            >
+        </div>
+
+        <div class="bodybuilder-photo-card">
+            <label>
+                Left Side View
+            </label>
+
+            <input
+                type="file"
+                id="bodybuilderCheckoutLeft"
+                accept="image/*"
+                capture="environment"
+            >
+        </div>
+
+        <div class="bodybuilder-photo-card">
+            <label>
+                Right Side View
+            </label>
+
+            <input
+                type="file"
+                id="bodybuilderCheckoutRight"
+                accept="image/*"
+                capture="environment"
+            >
+        </div>
+
+        <div class="bodybuilder-photo-card">
+            <label>
+                Fuel Gauge
+            </label>
+
+            <input
+                type="file"
+                id="bodybuilderCheckoutFuel"
+                accept="image/*"
+                capture="environment"
+            >
+        </div>
+
+    </div>
+
+    <button
+        type="button"
+        id="bodybuilderCheckoutBtn"
+        class="workflow-action-btn"
+    >
+        Confirm Vehicle Dispatched
+    </button>
+
+</div>
+<div
+    id="bodybuilderReturnPanel"
+    class="bodybuilder-panel hidden"
+>
+    <h4>
+        Vehicle Return
+    </h4>
+
+    <p>
+        Capture the vehicle condition when it returns from the bodybuilder.
+        All required photographs must be taken before the return is confirmed.
+    </p>
+
+    <div class="bodybuilder-photo-grid">
+
+        <div class="bodybuilder-photo-card">
+            <label>
+                Front View
+            </label>
+
+            <input
+                type="file"
+                id="bodybuilderReturnFront"
+                accept="image/*"
+                capture="environment"
+            >
+        </div>
+
+        <div class="bodybuilder-photo-card">
+            <label>
+                Rear View
+            </label>
+
+            <input
+                type="file"
+                id="bodybuilderReturnRear"
+                accept="image/*"
+                capture="environment"
+            >
+        </div>
+
+        <div class="bodybuilder-photo-card">
+            <label>
+                Left Side View
+            </label>
+
+            <input
+                type="file"
+                id="bodybuilderReturnLeft"
+                accept="image/*"
+                capture="environment"
+            >
+        </div>
+
+        <div class="bodybuilder-photo-card">
+            <label>
+                Right Side View
+            </label>
+
+            <input
+                type="file"
+                id="bodybuilderReturnRight"
+                accept="image/*"
+                capture="environment"
+            >
+        </div>
+
+        <div class="bodybuilder-photo-card">
+            <label>
+                Fuel Gauge
+            </label>
+
+            <input
+                type="file"
+                id="bodybuilderReturnFuel"
+                accept="image/*"
+                capture="environment"
+            >
+        </div>
+
+    </div>
+
+    <button
+        type="button"
+        id="bodybuilderReturnBtn"
+        class="workflow-action-btn"
+    >
+        Confirm Vehicle Returned
+    </button>
+</div>
+
+
+    </div>
+</div>
+
+        <!-- PHASE 3 -->
 
         <div class="phase-section">
 
@@ -670,7 +983,7 @@
             <div>
 
               <span>
-                Phase 2
+                Phase 3
               </span>
 
               <h3>
@@ -690,7 +1003,7 @@
         </div>
 
 
-        <!-- PHASE 3 -->
+        <!-- PHASE 4 -->
 
         <div class="phase-section">
 
@@ -699,7 +1012,7 @@
             <div>
 
               <span>
-                Phase 3
+                Phase 4
               </span>
 
               <h3>
@@ -719,7 +1032,7 @@
         </div>
 
 
-        <!-- PHASE 4 -->
+        <!-- PHASE 5 -->
 
         <div class="phase-section">
 
@@ -728,7 +1041,7 @@
             <div>
 
               <span>
-                Phase 4
+                Phase 5
               </span>
 
               <h3>

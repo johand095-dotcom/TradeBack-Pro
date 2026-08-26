@@ -1493,6 +1493,9 @@ console.log(
 await renderWorkflowReceivingPhotos(
     receivingPhotos
 );
+initialiseBodybuilderPhase(
+    selectedCase
+);
 
   document
     .getElementById(
@@ -1580,7 +1583,858 @@ await renderWorkflowReceivingPhotos(
 
 }
 
+async function initialiseBodybuilderPhase(selectedCase) {
 
+    const requiredSelect =
+        document.getElementById('bodybuilderRequired');
+
+    const detailsFields =
+        document.getElementById('bodybuilderDetailsFields');
+
+    const saveButton =
+        document.getElementById('saveBodybuilderDetailsBtn');
+
+    const status =
+        document.getElementById('bodybuilderPhaseStatus');
+
+
+const checkoutButton =
+    document.getElementById(
+        'bodybuilderCheckoutBtn'
+    );
+
+const returnButton =
+    document.getElementById(
+        'bodybuilderReturnBtn'
+    );
+
+    if (
+        !requiredSelect ||
+        !detailsFields ||
+        !saveButton
+    ) {
+        console.warn(
+            'Bodybuilder controls not found.'
+        );
+        return;
+    }
+
+    // Reset display whenever another vehicle is opened
+    requiredSelect.value = '';
+    detailsFields.classList.add('hidden');
+
+    status.textContent = 'Pending Decision';
+    const {
+    data: existingVisit,
+    error: loadError
+} =
+    await supabaseClient
+        .from('pdi_bodybuilder_visits')
+        .select(`
+            id,
+            bodybuilder_required,
+            supplier_name,
+            body_description,
+            estimated_days,
+            status,
+            checkout_at,
+            returned_at
+        `)
+        .eq(
+            'pdi_case_id',
+            selectedCase.id
+        )
+        .maybeSingle();
+
+if (loadError) {
+
+    console.error(
+        'Could not load bodybuilder details:',
+        loadError
+    );
+}
+
+if (existingVisit) {
+
+    if (
+        existingVisit.bodybuilder_required === false
+    ) {
+
+        requiredSelect.value =
+            'not_applicable';
+
+        detailsFields.classList.add(
+            'hidden'
+        );
+
+        status.textContent =
+            existingVisit.status ||
+            'Not Applicable';
+
+    } else if (
+        existingVisit.bodybuilder_required === true
+    ) {
+
+        requiredSelect.value =
+            'yes';
+
+        detailsFields.classList.remove(
+            'hidden'
+        );
+
+        document
+            .getElementById(
+                'bodybuilderSupplier'
+            )
+            .value =
+                existingVisit.supplier_name ||
+                '';
+
+        document
+            .getElementById(
+                'bodybuilderDescription'
+            )
+            .value =
+                existingVisit.body_description ||
+                '';
+
+        document
+            .getElementById(
+                'bodybuilderEstimatedDays'
+            )
+            .value =
+                existingVisit.estimated_days ||
+                '';
+
+        status.textContent =
+            existingVisit.status ||
+            'Bodybuilder Required';
+    }
+}
+
+const checkoutPanel =
+    document.getElementById(
+        'bodybuilderCheckoutPanel'
+    );
+
+
+const returnPanel =
+    document.getElementById(
+        'bodybuilderReturnPanel'
+    );
+
+    console.log(
+    'Bodybuilder panel test:',
+    {
+        status: existingVisit?.status,
+        checkoutPanel,
+        returnPanel
+    }
+);
+
+if (checkoutPanel) {
+    checkoutPanel.classList.add('hidden');
+}
+
+if (returnPanel) {
+    returnPanel.classList.add('hidden');
+}
+
+if (existingVisit) {
+
+    if (
+        existingVisit.status ===
+        'Ready for Dispatch'
+    ) {
+
+        checkoutPanel
+            ?.classList
+            .remove('hidden');
+    }
+
+    if (
+        existingVisit.status ===
+        'At Bodybuilder'
+    ) {
+
+        returnPanel
+            ?.classList
+            .remove('hidden');
+    }
+}
+
+if (
+    checkoutButton &&
+    existingVisit?.status === 'Ready for Dispatch'
+) {
+
+    checkoutButton.onclick = async function () {
+
+        const checkoutPhotos = [
+            {
+                type: 'Front',
+                inputId: 'bodybuilderCheckoutFront'
+            },
+            {
+                type: 'Rear',
+                inputId: 'bodybuilderCheckoutRear'
+            },
+            {
+                type: 'Left Side',
+                inputId: 'bodybuilderCheckoutLeft'
+            },
+            {
+                type: 'Right Side',
+                inputId: 'bodybuilderCheckoutRight'
+            },
+            {
+                type: 'Fuel Gauge',
+                inputId: 'bodybuilderCheckoutFuel'
+            }
+        ];
+
+        const missingPhotos =
+            checkoutPhotos.filter(
+                item => {
+                    const input =
+                        document.getElementById(
+                            item.inputId
+                        );
+
+                    return !input?.files?.[0];
+                }
+            );
+
+        if (missingPhotos.length) {
+
+            alert(
+                'Please capture all five required check-out photographs before dispatch.'
+            );
+
+            return;
+        }
+
+        checkoutButton.disabled = true;
+        checkoutButton.textContent =
+            'Dispatching...';
+
+        try {
+
+            const {
+                data: {
+                    user
+                },
+                error: userError
+            } =
+                await supabaseClient
+                    .auth
+                    .getUser();
+
+            if (userError || !user) {
+                throw (
+                    userError ||
+                    new Error(
+                        'No authenticated user found.'
+                    )
+                );
+            }
+
+            for (
+                const photoItem
+                of checkoutPhotos
+            ) {
+
+                const input =
+                    document.getElementById(
+                        photoItem.inputId
+                    );
+
+                const file =
+                    input.files[0];
+
+                const extension =
+                    file.name
+                        .split('.')
+                        .pop()
+                        ?.toLowerCase() ||
+                    'jpg';
+
+                const safeType =
+                    photoItem.type
+                        .toLowerCase()
+                        .replace(
+                            /[^a-z0-9]+/g,
+                            '-'
+                        );
+
+                const storagePath =
+                    `${selectedCase.receiving_no}/checkout/${safeType}.${extension}`;
+
+                const {
+                    error: uploadError
+                } =
+                    await supabaseClient
+                        .storage
+                        .from(
+                            'bodybuilder-photos'
+                        )
+                        .upload(
+                            storagePath,
+                            file,
+                            {
+                                contentType:
+                                    file.type ||
+                                    'image/jpeg',
+
+                                upsert:
+                                    true
+                            }
+                        );
+
+                if (uploadError) {
+                    throw uploadError;
+                }
+
+                const {
+                    error: photoRecordError
+                } =
+                    await supabaseClient
+                        .from(
+                            'pdi_bodybuilder_photos'
+                        )
+                        .upsert(
+                            {
+                                bodybuilder_visit_id:
+                                    existingVisit.id,
+
+                                pdi_case_id:
+                                    selectedCase.id,
+
+                                receiving_no:
+                                    selectedCase.receiving_no,
+
+                                photo_stage:
+                                    'Checkout',
+
+                                photo_type:
+                                    photoItem.type,
+
+                                storage_path:
+                                    storagePath,
+
+                                captured_at:
+                                    new Date()
+                                        .toISOString(),
+
+                                uploaded_by:
+                                    user.id
+                            },
+                            {
+                                onConflict:
+                                    'bodybuilder_visit_id,photo_stage,photo_type'
+                            }
+                        );
+
+                if (photoRecordError) {
+                    throw photoRecordError;
+                }
+            }
+
+            const checkoutTime =
+                new Date().toISOString();
+
+            const {
+                error: checkoutError
+            } =
+                await supabaseClient
+                    .from(
+                        'pdi_bodybuilder_visits'
+                    )
+                    .update(
+                        {
+                            status:
+                                'At Bodybuilder',
+
+                            checkout_at:
+                                checkoutTime,
+
+                            checkout_by:
+                                user.id,
+
+                            updated_at:
+                                checkoutTime
+                        }
+                    )
+                    .eq(
+                        'id',
+                        existingVisit.id
+                    );
+
+            if (checkoutError) {
+                throw checkoutError;
+            }
+
+            existingVisit.status =
+                'At Bodybuilder';
+
+            existingVisit.checkout_at =
+                checkoutTime;
+
+            status.textContent =
+                'At Bodybuilder';
+
+            checkoutPanel
+                ?.classList
+                .add('hidden');
+
+            returnPanel
+                ?.classList
+                .remove('hidden');
+
+            alert(
+                'Vehicle dispatched to bodybuilder successfully.'
+            );
+
+        } catch (error) {
+
+            console.error(
+                'Could not dispatch vehicle to bodybuilder:',
+                error
+            );
+
+            alert(
+                'The vehicle could not be dispatched. Please check the browser console.'
+            );
+
+        } finally {
+
+            checkoutButton.disabled =
+                false;
+
+            checkoutButton.textContent =
+                'Confirm Vehicle Dispatched';
+        }
+    };
+}
+if (
+    returnButton &&
+    existingVisit?.status === 'At Bodybuilder'
+) {
+
+    returnButton.onclick = async function () {
+
+        const returnPhotos = [
+            {
+                type: 'Front',
+                inputId: 'bodybuilderReturnFront'
+            },
+            {
+                type: 'Rear',
+                inputId: 'bodybuilderReturnRear'
+            },
+            {
+                type: 'Left Side',
+                inputId: 'bodybuilderReturnLeft'
+            },
+            {
+                type: 'Right Side',
+                inputId: 'bodybuilderReturnRight'
+            },
+            {
+                type: 'Fuel Gauge',
+                inputId: 'bodybuilderReturnFuel'
+            }
+        ];
+
+        const missingPhotos =
+            returnPhotos.filter(
+                item => {
+                    const input =
+                        document.getElementById(
+                            item.inputId
+                        );
+
+                    return !input?.files?.[0];
+                }
+            );
+
+        if (missingPhotos.length) {
+
+            alert(
+                'Please capture all five required return photographs before confirming the vehicle return.'
+            );
+
+            return;
+        }
+
+        returnButton.disabled = true;
+        returnButton.textContent =
+            'Confirming Return...';
+
+        try {
+
+            const {
+                data: {
+                    user
+                },
+                error: userError
+            } =
+                await supabaseClient
+                    .auth
+                    .getUser();
+
+            if (userError || !user) {
+                throw (
+                    userError ||
+                    new Error(
+                        'No authenticated user found.'
+                    )
+                );
+            }
+
+            for (
+                const photoItem
+                of returnPhotos
+            ) {
+
+                const input =
+                    document.getElementById(
+                        photoItem.inputId
+                    );
+
+                const file =
+                    input.files[0];
+
+                const extension =
+                    file.name
+                        .split('.')
+                        .pop()
+                        ?.toLowerCase() ||
+                    'jpg';
+
+                const safeType =
+                    photoItem.type
+                        .toLowerCase()
+                        .replace(
+                            /[^a-z0-9]+/g,
+                            '-'
+                        );
+
+                const storagePath =
+                    `${selectedCase.receiving_no}/return/${safeType}.${extension}`;
+
+                const {
+                    error: uploadError
+                } =
+                    await supabaseClient
+                        .storage
+                        .from(
+                            'bodybuilder-photos'
+                        )
+                        .upload(
+                            storagePath,
+                            file,
+                            {
+                                contentType:
+                                    file.type ||
+                                    'image/jpeg',
+
+                                upsert:
+                                    true
+                            }
+                        );
+
+                if (uploadError) {
+                    throw uploadError;
+                }
+
+                const {
+                    error: photoRecordError
+                } =
+                    await supabaseClient
+                        .from(
+                            'pdi_bodybuilder_photos'
+                        )
+                        .upsert(
+                            {
+                                bodybuilder_visit_id:
+                                    existingVisit.id,
+
+                                pdi_case_id:
+                                    selectedCase.id,
+
+                                receiving_no:
+                                    selectedCase.receiving_no,
+
+                                photo_stage:
+                                    'Return',
+
+                                photo_type:
+                                    photoItem.type,
+
+                                storage_path:
+                                    storagePath,
+
+                                captured_at:
+                                    new Date()
+                                        .toISOString(),
+
+                                uploaded_by:
+                                    user.id
+                            },
+                            {
+                                onConflict:
+                                    'bodybuilder_visit_id,photo_stage,photo_type'
+                            }
+                        );
+
+                if (photoRecordError) {
+                    throw photoRecordError;
+                }
+            }
+
+            const returnTime =
+                new Date().toISOString();
+
+            const {
+                error: returnError
+            } =
+                await supabaseClient
+                    .from(
+                        'pdi_bodybuilder_visits'
+                    )
+                    .update(
+                        {
+                            status:
+                                'Completed',
+
+                            returned_at:
+                                returnTime,
+
+                            returned_by:
+                                user.id,
+
+                            updated_at:
+                                returnTime
+                        }
+                    )
+                    .eq(
+                        'id',
+                        existingVisit.id
+                    );
+
+            if (returnError) {
+                throw returnError;
+            }
+
+            existingVisit.status =
+                'Completed';
+
+            existingVisit.returned_at =
+                returnTime;
+
+            status.textContent =
+                'Bodybuilder Complete';
+
+            returnPanel
+                ?.classList
+                .add('hidden');
+
+            alert(
+                'Vehicle return from bodybuilder confirmed successfully.'
+            );
+
+        } catch (error) {
+
+            console.error(
+                'Could not confirm vehicle return:',
+                error
+            );
+
+            alert(
+                'The vehicle return could not be confirmed. Please check the browser console.'
+            );
+
+        } finally {
+
+            returnButton.disabled =
+                false;
+
+            returnButton.textContent =
+                'Confirm Vehicle Returned';
+        }
+    };
+}
+    requiredSelect.onchange = function () {
+
+        if (requiredSelect.value === 'yes') {
+
+            detailsFields.classList.remove('hidden');
+
+            status.textContent =
+                'Bodybuilder Required';
+
+        } else if (
+            requiredSelect.value ===
+            'not_applicable'
+        ) {
+
+            detailsFields.classList.add('hidden');
+
+            status.textContent =
+                'Not Applicable';
+
+        } else {
+
+            detailsFields.classList.add('hidden');
+
+            status.textContent =
+                'Pending Decision';
+        }
+    };
+
+saveButton.onclick = async function () {
+
+        const decision =
+            requiredSelect.value;
+
+        if (!decision) {
+
+            alert(
+                'Please select whether a bodybuilder is required.'
+            );
+
+            return;
+        }
+
+        const supplier =
+            document
+                .getElementById('bodybuilderSupplier')
+                ?.value
+                .trim() || null;
+
+        const bodyDescription =
+            document
+                .getElementById('bodybuilderDescription')
+                ?.value
+                .trim() || null;
+
+        const estimatedDays =
+            Number(
+                document
+                    .getElementById('bodybuilderEstimatedDays')
+                    ?.value
+            ) || null;
+
+        if (decision === 'yes') {
+
+            if (
+                !supplier ||
+                !bodyDescription ||
+                !estimatedDays
+            ) {
+
+                alert(
+                    'Please enter the supplier, body being fitted and estimated fitment days.'
+                );
+
+                return;
+            }
+        }
+
+        console.log(
+            'Saving bodybuilder decision:',
+            {
+                receivingNo:
+                    selectedCase.receiving_no,
+                decision,
+                supplier,
+                bodyDescription,
+                estimatedDays
+            }
+        );
+
+        const bodybuilderRequired =
+    decision === 'yes';
+
+const bodybuilderStatus =
+    bodybuilderRequired
+        ? 'Ready for Dispatch'
+        : 'Not Applicable';
+
+const {
+    error: saveError
+} =
+    await supabaseClient
+        .from('pdi_bodybuilder_visits')
+        .upsert(
+            {
+                pdi_case_id:
+                    selectedCase.id,
+
+                receiving_no:
+                    selectedCase.receiving_no,
+
+                bodybuilder_required:
+                    bodybuilderRequired,
+
+                supplier_name:
+                    bodybuilderRequired
+                        ? supplier
+                        : null,
+
+                body_description:
+                    bodybuilderRequired
+                        ? bodyDescription
+                        : null,
+
+                estimated_days:
+                    bodybuilderRequired
+                        ? estimatedDays
+                        : null,
+
+                status:
+                    bodybuilderStatus,
+
+                updated_at:
+                    new Date().toISOString()
+            },
+            {
+                onConflict:
+                    'pdi_case_id'
+            }
+        );
+
+if (saveError) {
+
+    console.error(
+        'Could not save bodybuilder details:',
+        saveError
+    );
+
+    alert(
+        'Bodybuilder details could not be saved.'
+    );
+
+    return;
+}
+if (decision === 'yes') {
+
+    status.textContent =
+        'Ready for Dispatch';
+
+} else {
+
+    status.textContent =
+        'Not Applicable';
+}
+
+alert(
+    'Bodybuilder details saved successfully.'
+);
+
+};
+}
 /* =========================================================
    CLOSE WORKFLOW
 ========================================================= */
