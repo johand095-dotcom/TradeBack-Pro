@@ -602,6 +602,124 @@
 
           </div>
 
+<!-- EXPECTED COMPLETION -->
+
+<div class="workflow-eta-card">
+
+    <span>
+        Expected Completion
+    </span>
+
+    <strong id="workflowExpectedCompletion">
+        -
+    </strong>
+
+   
+    <small
+        id="workflowEtaStatus"
+        class="workflow-eta-status"
+    >
+    </small>
+
+<div
+    id="workflowEtaAudit"
+    class="workflow-eta-audit hidden"
+>
+    <div>
+        <span>Original System ETA</span>
+        <strong id="workflowSystemEta">-</strong>
+    </div>
+
+    <div>
+        <span>Override Reason</span>
+        <strong id="workflowEtaOverrideReason">-</strong>
+    </div>
+</div>
+
+<div
+    id="workflowEtaOverridePanel"
+    class="workflow-eta-override-panel"
+>
+
+    <button
+        type="button"
+        id="workflowEtaOverrideToggle"
+        class="secondary-button"
+    >
+        Override ETA
+    </button>
+
+    <div
+        id="workflowEtaOverrideFields"
+        class="hidden"
+    >
+
+        <label for="workflowEtaOverrideDate">
+            New Expected Completion Date
+        </label>
+
+        <input
+            type="date"
+            id="workflowEtaOverrideDate"
+        >
+
+        <label for="workflowEtaOverrideReason">
+            Reason for Override
+        </label>
+
+        <select id="workflowEtaOverrideReason">
+
+            <option value="">
+                Select reason...
+            </option>
+
+            <option value="Additional fitments">
+                Additional fitments
+            </option>
+
+            <option value="Major repairs">
+                Major repairs
+            </option>
+
+            <option value="Major paint repairs">
+                Major paint repairs
+            </option>
+
+            <option value="Parts delay">
+                Parts delay
+            </option>
+
+            <option value="OEM approval delay">
+                OEM approval delay
+            </option>
+
+            <option value="Other">
+                Other
+            </option>
+
+        </select>
+
+        <input
+            type="text"
+            id="workflowEtaOverrideOther"
+            class="hidden"
+            placeholder="Enter reason"
+        >
+
+        <button
+            type="button"
+            id="workflowEtaOverrideSave"
+            class="workflow-action-btn"
+        >
+            Save New ETA
+        </button>
+
+    </div>
+
+</div>
+
+</div>
+
         </div>
 
         <!-- RECEIVING PHOTOGRAPHS -->

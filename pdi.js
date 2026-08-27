@@ -812,7 +812,10 @@ async function loadPdiCases() {
         current_step_started_at,
         started_at,
         updated_at,
-        completed_at
+        completed_at,
+        system_expected_completion_date,
+expected_completion_date,
+expected_completion_override_reason
       `)
       .order(
         'started_at',
@@ -1557,6 +1560,395 @@ initialiseBodybuilderPhase(
         selectedCase.started_at
       );
 
+
+const expectedCompletionElement =
+    document.getElementById(
+        'workflowExpectedCompletion'
+    );
+
+const etaStatusElement =
+    document.getElementById(
+        'workflowEtaStatus'
+    );
+
+const etaAuditElement =
+    document.getElementById(
+        'workflowEtaAudit'
+    );
+
+const systemEtaElement =
+    document.getElementById(
+        'workflowSystemEta'
+    );
+
+const overrideReasonElement =
+    document.getElementById(
+        'workflowEtaOverrideReason'
+    );
+
+if (expectedCompletionElement) {
+
+    const etaDate =
+        selectedCase.expected_completion_date;
+
+    expectedCompletionElement.textContent =
+        etaDate
+            ? new Date(
+                `${etaDate}T00:00:00`
+            ).toLocaleDateString(
+                'en-ZA',
+                {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                }
+            )
+            : '-';
+}
+
+if (etaStatusElement) {
+
+    const etaDate =
+        selectedCase.expected_completion_date;
+
+    if (!etaDate) {
+
+        etaStatusElement.textContent =
+            '';
+
+    } else {
+
+        const today =
+            new Date();
+
+        today.setHours(
+            0,
+            0,
+            0,
+            0
+        );
+
+        const expectedDate =
+            new Date(
+                `${etaDate}T00:00:00`
+            );
+
+        const diffMs =
+            expectedDate.getTime() -
+            today.getTime();
+
+        const diffDays =
+            Math.ceil(
+                diffMs /
+                (1000 * 60 * 60 * 24)
+            );
+
+        if (
+            selectedCase.workflow_status ===
+            'Completed'
+        ) {
+
+            etaStatusElement.textContent =
+                'Completed';
+
+        } else if (
+            diffDays < 0
+        ) {
+
+            etaStatusElement.textContent =
+                'Overdue';
+
+        } else if (
+            diffDays <= 1
+        ) {
+
+            etaStatusElement.textContent =
+                'At Risk';
+
+        } else {
+
+            etaStatusElement.textContent =
+                'On Track';
+        }
+    }
+}
+
+if (
+    etaAuditElement &&
+    systemEtaElement &&
+    overrideReasonElement
+) {
+
+    const hasOverride =
+        Boolean(
+            selectedCase
+                .expected_completion_override_reason
+        );
+
+    if (hasOverride) {
+
+        etaAuditElement
+            .classList
+            .remove('hidden');
+
+        const systemEta =
+            selectedCase
+                .system_expected_completion_date;
+
+        systemEtaElement.textContent =
+            systemEta
+                ? new Date(
+                    `${systemEta}T00:00:00`
+                ).toLocaleDateString(
+                    'en-ZA',
+                    {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                    }
+                )
+                : '-';
+
+        overrideReasonElement.textContent =
+            selectedCase
+                .expected_completion_override_reason ||
+            '-';
+
+        if (etaStatusElement) {
+            etaStatusElement.textContent =
+                'Overridden';
+        }
+
+    } else {
+
+        etaAuditElement
+            .classList
+            .add('hidden');
+
+        systemEtaElement.textContent =
+            '-';
+
+        overrideReasonElement.textContent =
+            '-';
+    }
+}
+
+const etaOverrideToggle =
+    document.getElementById(
+        'workflowEtaOverrideToggle'
+    );
+
+const etaOverrideFields =
+    document.getElementById(
+        'workflowEtaOverrideFields'
+    );
+
+const etaOverrideDate =
+    document.getElementById(
+        'workflowEtaOverrideDate'
+    );
+
+const etaOverrideReason =
+    document.getElementById(
+        'workflowEtaOverrideReason'
+    );
+
+const etaOverrideOther =
+    document.getElementById(
+        'workflowEtaOverrideOther'
+    );
+
+const etaOverrideSave =
+    document.getElementById(
+        'workflowEtaOverrideSave'
+    );
+
+if (
+    etaOverrideDate &&
+    selectedCase.expected_completion_date
+) {
+    etaOverrideDate.value =
+        selectedCase.expected_completion_date;
+}
+
+if (
+    etaOverrideToggle &&
+    etaOverrideFields
+) {
+
+    etaOverrideToggle.onclick =
+        function () {
+
+            etaOverrideFields
+                .classList
+                .toggle('hidden');
+        };
+}
+
+if (
+    etaOverrideReason &&
+    etaOverrideOther
+) {
+
+    etaOverrideReason.onchange =
+        function () {
+
+            if (
+                etaOverrideReason.value ===
+                'Other'
+            ) {
+
+                etaOverrideOther
+                    .classList
+                    .remove('hidden');
+
+            } else {
+
+                etaOverrideOther
+                    .classList
+                    .add('hidden');
+
+                etaOverrideOther.value =
+                    '';
+            }
+        };
+}
+
+if (
+    etaOverrideSave &&
+    etaOverrideDate &&
+    etaOverrideReason
+) {
+
+    etaOverrideSave.onclick =
+        async function () {
+
+            const newDate =
+                etaOverrideDate.value;
+
+            const selectedReason =
+                etaOverrideReason.value;
+
+            const finalReason =
+                selectedReason === 'Other'
+                    ? etaOverrideOther
+                        ?.value
+                        .trim()
+                    : selectedReason;
+
+            if (!newDate) {
+
+                alert(
+                    'Please select a new expected completion date.'
+                );
+
+                return;
+            }
+
+            if (!finalReason) {
+
+                alert(
+                    'Please select or enter a reason for the ETA override.'
+                );
+
+                return;
+            }
+
+            etaOverrideSave.disabled =
+                true;
+
+            etaOverrideSave.textContent =
+                'Saving...';
+
+            try {
+
+                const {
+                    error
+                } =
+                    await supabaseClient
+                        .from(
+                            'pdi_cases'
+                        )
+                        .update(
+                            {
+                                expected_completion_date:
+                                    newDate,
+
+                                expected_completion_override_reason:
+                                    finalReason,
+
+                                updated_at:
+                                    new Date()
+                                        .toISOString()
+                            }
+                        )
+                        .eq(
+                            'id',
+                            selectedCase.id
+                        );
+
+                if (error) {
+                    throw error;
+                }
+
+                selectedCase
+                    .expected_completion_date =
+                    newDate;
+
+                selectedCase
+                    .expected_completion_override_reason =
+                    finalReason;
+
+                expectedCompletionElement
+                    .textContent =
+                    new Date(
+                        `${newDate}T00:00:00`
+                    )
+                    .toLocaleDateString(
+                        'en-ZA',
+                        {
+                            day:
+                                '2-digit',
+                            month:
+                                'short',
+                            year:
+                                'numeric'
+                        }
+                    );
+
+                etaStatusElement
+                    .textContent =
+                    'Overridden';
+
+                etaOverrideFields
+                    .classList
+                    .add('hidden');
+
+                alert(
+                    'Expected completion date updated successfully.'
+                );
+
+            } catch (error) {
+
+                console.error(
+                    'Could not update ETA:',
+                    error
+                );
+
+                alert(
+                    'The expected completion date could not be updated.'
+                );
+
+            } finally {
+
+                etaOverrideSave.disabled =
+                    false;
+
+                etaOverrideSave.textContent =
+                    'Save New ETA';
+            }
+        };
+}
 
   document
     .getElementById(
