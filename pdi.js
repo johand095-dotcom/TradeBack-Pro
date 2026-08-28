@@ -2821,6 +2821,10 @@ if (decision === 'yes') {
         'Not Applicable';
 }
 
+await initialiseBodybuilderPhase(
+    selectedCase
+);
+
 alert(
     'Bodybuilder details saved successfully.'
 );
