@@ -811,6 +811,7 @@ async function loadPdiCases() {
         current_step,
         current_step_started_at,
         started_at,
+        pdi_started_at,
         updated_at,
         completed_at,
         system_expected_completion_date,
@@ -1482,6 +1483,125 @@ async function openPdiWorkflow(caseId) {
 
     return;
   }
+
+if (
+    Number(selectedCase.current_phase) >= 4 &&
+    !selectedCase.pdi_started_at
+) {
+
+    const pdiStartTime =
+        new Date().toISOString();
+
+    const {
+        error: pdiStartError
+    } =
+        await supabaseClient
+            .from('pdi_cases')
+            .update({
+                pdi_started_at:
+                    pdiStartTime,
+                updated_at:
+                    pdiStartTime
+            })
+            .eq(
+                'id',
+                selectedCase.id
+            );
+
+    if (pdiStartError) {
+
+        console.error(
+            'Could not start PDI clock:',
+            pdiStartError
+        );
+
+    } else {
+
+        selectedCase.pdi_started_at =
+            pdiStartTime;
+
+        console.log(
+            'PDI clock started:',
+            pdiStartTime
+        );
+    }
+}
+
+try {
+
+    const {
+        error: recalcError
+    } =
+        await supabaseClient
+            .rpc(
+                'recalculate_pdi_expected_completion',
+                {
+                    p_case_id:
+                        selectedCase.id
+                }
+            );
+
+    if (recalcError) {
+        throw recalcError;
+    }
+
+    const {
+        data: refreshedCase,
+        error: refreshCaseError
+    } =
+        await supabaseClient
+            .from(
+                'pdi_cases'
+            )
+            .select(`
+                system_expected_completion_date,
+                expected_completion_date,
+                expected_completion_override_reason
+            `)
+            .eq(
+                'id',
+                selectedCase.id
+            )
+            .single();
+
+    if (refreshCaseError) {
+        throw refreshCaseError;
+    }
+
+    if (refreshedCase) {
+
+        selectedCase.system_expected_completion_date =
+            refreshedCase.system_expected_completion_date;
+
+        selectedCase.expected_completion_date =
+            refreshedCase.expected_completion_date;
+
+        selectedCase.expected_completion_override_reason =
+            refreshedCase.expected_completion_override_reason;
+    }
+
+    console.log(
+        'ETA recalculated:',
+        {
+            caseId:
+                selectedCase.id,
+
+            systemEta:
+                selectedCase.system_expected_completion_date,
+
+            currentEta:
+                selectedCase.expected_completion_date
+        }
+    );
+
+} catch (etaError) {
+
+    console.error(
+        'Could not recalculate PDI ETA:',
+        etaError
+    );
+}
+
 
 const receivingPhotos =
     await loadReceivingPhotos(
