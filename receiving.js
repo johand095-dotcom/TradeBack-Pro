@@ -1606,14 +1606,15 @@ function generateReceivingReport() {
     @page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#111827;font-size:12px}.report-header{display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #003b73;padding-bottom:12px;margin-bottom:18px}.report-header h1{margin:0 0 6px;color:#001e3c;font-size:24px}.mini-logo{color:#003b73;font-size:24px;font-weight:900;border:3px solid #003b73;padding:10px;border-radius:8px}h2{color:#001e3c;margin-top:22px;margin-bottom:8px;border-bottom:2px solid #eaf3ff;padding-bottom:6px;page-break-after:avoid}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #9ca3af;padding:7px;text-align:left;vertical-align:top;font-size:10px}th{background:#e8edf5}thead{display:table-header-group}tr,img{page-break-inside:avoid}.report-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.report-photo-card{border:1px solid #cbd5e1;border-radius:6px;padding:6px;break-inside:avoid}.report-photo{display:block;width:100%;height:150px;object-fit:contain;background:#f8fafc}.report-photo-caption{padding-top:5px;font-size:9px}.photo-appendix-heading{page-break-before:always}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style></head><body>${report.innerHTML}</body></html>`);
   printWindow.document.close();
-  const completeRecord=()=>{
+const completeRecord = async () => {
     const fields=collectReceivingFields();
     const records=getReceivingDatabase();
     const index=records.findIndex(r=>r.receivingNo===fields.receivingNo);
     const record={receivingNo:fields.receivingNo,status:'Completed',result:metrics.finalResult,fields,state:receivingState,signature:document.getElementById('receivingSignaturePad').toDataURL(),createdAt:index>=0?records[index].createdAt:new Date().toISOString(),completedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
     if(index>=0)records[index]=record;else records.push(record);
     saveReceivingDatabase(records);saveReceivingDatabase(records);
-
+    await saveReceivingRecordToCloud(record);
+  
 localStorage.setItem(
   RECEIVING_DRAFT_KEY,
   record.receivingNo

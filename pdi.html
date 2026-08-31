@@ -219,7 +219,181 @@
           <h2>
             PDI Operations Dashboard
           </h2>
+<!-- PRE-ARRIVAL / OEM ORDER ENTRY -->
 
+<section
+    id="preArrivalOrderSection"
+    class="card"
+>
+    <div class="section-header">
+        <div>
+            <h2>Pre-Arrival OEM Orders</h2>
+            <p>
+                Load newly ordered vehicles before arrival and track expected delivery to ELT.
+            </p>
+        </div>
+    </div>
+
+    <div class="prearrival-form-grid">
+
+        <div>
+            <label for="preArrivalSupplier">
+                OEM / Supplier
+            </label>
+            <input
+                type="text"
+                id="preArrivalSupplier"
+                placeholder="e.g. FAW"
+            >
+        </div>
+
+        <div>
+            <label for="preArrivalMake">
+                Vehicle Make
+            </label>
+            <input
+                type="text"
+                id="preArrivalMake"
+                placeholder="e.g. FAW"
+            >
+        </div>
+
+        <div>
+            <label for="preArrivalModel">
+                Vehicle Model
+            </label>
+            <input
+                type="text"
+                id="preArrivalModel"
+                placeholder="e.g. JH6 28.500FT"
+            >
+        </div>
+
+        <div>
+            <label for="preArrivalVin">
+                VIN
+            </label>
+            <input
+                type="text"
+                id="preArrivalVin"
+                placeholder="Enter VIN if available"
+            >
+        </div>
+
+        <div>
+            <label for="preArrivalOrderReference">
+                Order / PO Reference
+            </label>
+            <input
+                type="text"
+                id="preArrivalOrderReference"
+                placeholder="Enter order reference"
+            >
+        </div>
+
+        <div>
+            <label for="preArrivalEta">
+                OEM ETA
+            </label>
+            <input
+                type="date"
+                id="preArrivalEta"
+            >
+        </div>
+
+        <div>
+            <label for="preArrivalClassification">
+                Stock Classification
+            </label>
+
+            <select id="preArrivalClassification">
+                <option value="">
+                    Select...
+                </option>
+
+                <option value="Sold">
+                    Sold
+                </option>
+
+                <option value="Allocated">
+                    Allocated
+                </option>
+
+                <option value="Stock">
+                    Stock
+                </option>
+            </select>
+        </div>
+
+        <div>
+    </div>
+
+    <div class="form-actions">
+
+        <button
+            type="button"
+            id="savePreArrivalOrderBtn"
+            class="workflow-action-btn"
+        >
+            Add OEM Order
+        </button>
+
+    </div>
+
+    <div
+        id="preArrivalOrderMessage"
+        class="form-message"
+    ></div>
+</section>
+<!-- AWAITING ARRIVAL REGISTER -->
+
+<section
+    id="awaitingArrivalSection"
+    class="card"
+>
+    <div class="section-header">
+        <div>
+            <h2>Awaiting Vehicle Arrival</h2>
+            <p>
+                Vehicles ordered from OEMs that have not yet been received at ELT.
+            </p>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+
+        <table class="workflow-table">
+
+            <thead>
+                <tr>
+                    <th>Priority</th>
+                    <th>OEM / Supplier</th>
+                    <th>Vehicle</th>
+                    <th>VIN</th>
+                      <th>Stock No.</th>
+                    <th>Order / PO</th>
+                    <th>ETA</th>
+                    <th>Classification</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  
+                </tr>
+            </thead>
+
+            <tbody id="awaitingArrivalTableBody">
+
+                <tr>
+                    <td colspan="10">
+                        No vehicles awaiting arrival.
+                    </td>
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+</section>
           <p>
             Track every new vehicle from Receiving
             through PDI, repairs, paint, sales

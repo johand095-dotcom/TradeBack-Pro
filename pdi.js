@@ -806,6 +806,13 @@ async function loadPdiCases() {
         vin,
         make,
         model,
+        oem_supplier,
+order_status,
+order_reference,
+oem_eta,
+stock_classification,
+ordered_at,
+received_at,
         workflow_status,
         current_phase,
         current_step,
@@ -845,7 +852,7 @@ expected_completion_override_reason
 
 
   renderPdiDashboard();
-
+initialisePreArrivalOrderForm();
   renderPdiVehicleTable();
 
   renderPdiArchive();
@@ -949,6 +956,239 @@ caseRecord.current_step_target_hours =
    DASHBOARD METRICS
 ========================================================= */
 
+function initialisePreArrivalOrderForm() {
+
+    const saveButton =
+        document.getElementById(
+            'savePreArrivalOrderBtn'
+        );
+
+    if (!saveButton) {
+        return;
+    }
+
+    saveButton.onclick =
+        async function () {
+
+            const supplier =
+                document
+                    .getElementById(
+                        'preArrivalSupplier'
+                    )
+                    ?.value
+                    .trim();
+
+            const make =
+                document
+                    .getElementById(
+                        'preArrivalMake'
+                    )
+                    ?.value
+                    .trim();
+
+            const model =
+                document
+                    .getElementById(
+                        'preArrivalModel'
+                    )
+                    ?.value
+                    .trim();
+
+            const vin =
+                document
+                    .getElementById(
+                        'preArrivalVin'
+                    )
+                    ?.value
+                    .trim();
+
+            const orderReference =
+                document
+                    .getElementById(
+                        'preArrivalOrderReference'
+                    )
+                    ?.value
+                    .trim();
+
+            const eta =
+                document
+                    .getElementById(
+                        'preArrivalEta'
+                    )
+                    ?.value;
+
+            const classification =
+                document
+                    .getElementById(
+                        'preArrivalClassification'
+                    )
+                    ?.value;
+
+          
+
+            const message =
+                document.getElementById(
+                    'preArrivalOrderMessage'
+                );
+
+            if (
+                !supplier ||
+                !make ||
+                !model ||
+                !eta ||
+                !classification
+            ) {
+
+                alert(
+                    'Please complete OEM / Supplier, Make, Model, ETA and Stock Classification.'
+                );
+
+                return;
+            }
+
+            saveButton.disabled = true;
+            saveButton.textContent =
+                'Saving Order...';
+
+            try {
+
+                const now =
+                    new Date().toISOString();
+
+                const {
+                    data: newCase,
+                    error
+                } =
+                    await supabaseClient
+                        .from('pdi_cases')
+                        .insert({
+                            receiving_no:
+                                null,
+
+                            stock_no:
+                                 null,
+
+                            vin:
+                                vin || null,
+                            oem_supplier:
+                                supplier,  
+
+                            make:
+                                make,
+
+                            model:
+                                model,
+
+                            workflow_status:
+                                'Awaiting Arrival',
+
+                            current_phase:
+                                0,
+
+                            current_step:
+                                0,
+
+                            started_at:
+                                now,
+
+                            updated_at:
+                                now,
+
+                            order_status:
+                                'Awaiting Arrival',
+
+                            order_reference:
+                                orderReference || null,
+
+                            oem_eta:
+                                eta,
+
+                            stock_classification:
+                                classification,
+
+                            ordered_at:
+                                now
+                        })
+                        .select()
+                        .single();
+
+                if (error) {
+                    throw error;
+                }
+
+                if (message) {
+                    message.textContent =
+                        'OEM order added successfully.';
+                }
+
+                document
+                    .getElementById(
+                        'preArrivalSupplier'
+                    ).value = '';
+
+                document
+                    .getElementById(
+                        'preArrivalMake'
+                    ).value = '';
+
+                document
+                    .getElementById(
+                        'preArrivalModel'
+                    ).value = '';
+
+                document
+                    .getElementById(
+                        'preArrivalVin'
+                    ).value = '';
+
+                document
+                    .getElementById(
+                        'preArrivalOrderReference'
+                    ).value = '';
+
+                document
+                    .getElementById(
+                        'preArrivalEta'
+                    ).value = '';
+
+                document
+                    .getElementById(
+                        'preArrivalClassification'
+                    ).value = '';
+
+             
+
+                await loadPdiCases();
+
+                renderPdiDashboard();
+
+                console.log(
+                    'Pre-arrival OEM order created:',
+                    newCase
+                );
+
+            } catch (error) {
+
+                console.error(
+                    'Could not create OEM order:',
+                    error
+                );
+
+                alert(
+                    'The OEM order could not be saved. Please check the browser console.'
+                );
+
+            } finally {
+
+                saveButton.disabled =
+                    false;
+
+                saveButton.textContent =
+                    'Add OEM Order';
+            }
+        };
+}
+
 function renderPdiDashboard() {
 
   const activeCases =
@@ -1042,8 +1282,333 @@ function renderPdiDashboard() {
     )
     .textContent =
       readyCollection.length;
+renderAwaitingArrivalTable();
+
 }
 
+function renderAwaitingArrivalTable() {
+
+    const tableBody =
+        document.getElementById(
+            'awaitingArrivalTableBody'
+        );
+
+    if (!tableBody) {
+        return;
+    }
+
+    const priorityOrder = {
+        Sold: 1,
+        Allocated: 2,
+        Stock: 3
+    };
+
+    const awaitingArrival =
+        pdiCases
+            .filter(
+                item =>
+                    item.order_status ===
+                        'Awaiting Arrival' ||
+                    item.workflow_status ===
+                        'Awaiting Arrival'
+            )
+            .sort(
+                (a, b) => {
+
+                    const priorityA =
+                        priorityOrder[
+                            a.stock_classification
+                        ] || 99;
+
+                    const priorityB =
+                        priorityOrder[
+                            b.stock_classification
+                        ] || 99;
+
+                    if (
+                        priorityA !==
+                        priorityB
+                    ) {
+                        return (
+                            priorityA -
+                            priorityB
+                        );
+                    }
+
+                    const etaA =
+                        a.oem_eta
+                            ? new Date(
+                                `${a.oem_eta}T00:00:00`
+                            )
+                            : new Date(
+                                '2999-12-31'
+                            );
+
+                    const etaB =
+                        b.oem_eta
+                            ? new Date(
+                                `${b.oem_eta}T00:00:00`
+                            )
+                            : new Date(
+                                '2999-12-31'
+                            );
+
+                    return etaA - etaB;
+                }
+            );
+
+    if (!awaitingArrival.length) {
+
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="9">
+                    No vehicles awaiting arrival.
+                </td>
+            </tr>
+        `;
+
+        return;
+    }
+
+    const today =
+        new Date();
+
+    today.setHours(
+        0,
+        0,
+        0,
+        0
+    );
+
+    tableBody.innerHTML =
+        awaitingArrival
+            .map(
+                item => {
+
+                    const classification =
+                        item.stock_classification ||
+                        '-';
+
+                    let priorityLabel = '-';
+
+                    if (
+                        classification ===
+                        'Sold'
+                    ) {
+                        priorityLabel =
+                            '1 - HIGH';
+                    }
+
+                    if (
+                        classification ===
+                        'Allocated'
+                    ) {
+                        priorityLabel =
+                            '2 - MEDIUM';
+                    }
+
+                    if (
+                        classification ===
+                        'Stock'
+                    ) {
+                        priorityLabel =
+                            '3 - NORMAL';
+                    }
+
+                    let etaText = '-';
+                    let etaStatus = '';
+
+                    if (item.oem_eta) {
+
+                        const etaDate =
+                            new Date(
+                                `${item.oem_eta}T00:00:00`
+                            );
+
+                        etaText =
+                            etaDate
+                                .toLocaleDateString(
+                                    'en-ZA',
+                                    {
+                                        day:
+                                            '2-digit',
+
+                                        month:
+                                            'short',
+
+                                        year:
+                                            'numeric'
+                                    }
+                                );
+
+                        if (
+                            etaDate <
+                            today
+                        ) {
+                            etaStatus =
+                                ' - OVERDUE';
+                        }
+                    }
+
+                    const vehicle =
+                        [
+                            item.make,
+                            item.model
+                        ]
+                            .filter(Boolean)
+                            .join(' ') ||
+                        '-';
+
+                    return `
+                        <tr>
+                            <td>
+                                <strong>
+                                    ${priorityLabel}
+                                </strong>
+                            </td>
+
+                            <td>
+                                ${
+                                    item.oem_supplier ||
+                                    '-'
+                                }
+                            </td>
+
+                            <td>
+                                ${vehicle}
+                            </td>
+
+                            <td>
+                                ${item.vin || '-'}
+                            </td>
+                            <td>
+    ${item.stock_no || '-'}
+</td>
+                            <td>
+                                ${
+                                    item.order_reference ||
+                                    '-'
+                                }
+                            </td>
+
+                            <td>
+                                ${etaText}${etaStatus}
+                            </td>
+
+                            <td>
+                                ${classification}
+                            </td>
+
+                            <td>
+                                Awaiting Arrival
+                            </td>
+
+                            <td>
+                            <button
+    type="button"
+    class="workflow-action-btn prearrival-stock-btn"
+    data-case-id="${item.id}"
+    >
+
+    ${
+        item.stock_no
+            ? 'Edit Stock No.'
+            : 'Allocate Stock No.'
+    }
+</button>
+                            </td>
+                        </tr>
+                    `;
+                }
+            )
+            .join('');
+    document
+    .querySelectorAll(
+        '.prearrival-stock-btn'
+    )
+    .forEach(button => {
+button.onclick = async function () {
+const caseId =
+    Number(this.dataset.caseId);
+
+const selectedCase =
+    pdiCases.find(
+        item =>
+            Number(item.id) === caseId
+    );
+    if (!selectedCase) {
+    alert(
+        'The vehicle record could not be found.'
+    );
+    return;
+}
+const stockNo =
+    prompt(
+        'Enter the ELT Stock Number:',
+        selectedCase.stock_no || ''
+    );
+
+if (stockNo === null) {
+    return;
+}
+const cleanedStockNo =
+    stockNo.trim();
+
+if (!cleanedStockNo) {
+    alert(
+        'Please enter a valid Stock Number.'
+    );
+    return;
+}
+if (!cleanedStockNo) {
+    alert(
+        'Please enter a valid Stock Number.'
+    );
+    return;
+}
+try {
+
+    const { error } =
+        await supabaseClient
+            .from('pdi_cases')
+            .update({
+                stock_no: cleanedStockNo,
+                updated_at: new Date().toISOString()
+            })
+            .eq(
+                'id',
+                selectedCase.id
+            );
+
+    if (error) {
+        throw error;
+    }
+selectedCase.stock_no =
+    cleanedStockNo;
+
+await loadPdiCases();
+
+renderPdiDashboard();
+
+alert(
+    'Stock Number allocated successfully.'
+);
+} catch (error) {
+
+    console.error(
+        'Could not allocate Stock Number:',
+        error
+    );
+
+    alert(
+        'The Stock Number could not be saved. Please check the browser console.'
+    );
+
+    return;
+}
+};
+    });
+}
 
 /* =========================================================
    ACTIVE VEHICLE TABLE
