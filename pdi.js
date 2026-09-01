@@ -877,23 +877,57 @@ async function attachCurrentStepDetails() {
     );
 
 
-  const {
-    data,
-    error
-  } =
-    await supabaseClient
-      .from('pdi_case_steps')
-      .select(`
-        pdi_case_id,
-        step_no,
-        activity,
-        responsible_role,
-        step_status
-      `)
-      .in(
-        'pdi_case_id',
-        caseIds
-      );
+let data = [];
+let error = null;
+
+const pageSize = 1000;
+let from = 0;
+
+while (true) {
+    const {
+        data: pageData,
+        error: pageError
+    } =
+        await supabaseClient
+            .from('pdi_case_steps')
+            .select(`
+                pdi_case_id,
+                step_no,
+                activity,
+                responsible_role,
+                step_status
+            `)
+            .in(
+                'pdi_case_id',
+                caseIds
+            )
+            .order(
+                'id',
+                { ascending: true }
+            )
+            .range(
+                from,
+                from + pageSize - 1
+            );
+
+    if (pageError) {
+        error = pageError;
+        break;
+    }
+
+    data.push(
+        ...(pageData || [])
+    );
+
+    if (
+        !pageData ||
+        pageData.length < pageSize
+    ) {
+        break;
+    }
+
+    from += pageSize;
+}
 
 
   if (error) {
@@ -915,13 +949,13 @@ async function attachCurrentStepDetails() {
     caseRecord => {
 
       const currentStep =
-        steps.find(
-          step =>
-            step.pdi_case_id ===
-              caseRecord.id &&
-            step.step_no ===
-              caseRecord.current_step
-        );
+    steps.find(
+        step =>
+            Number(step.pdi_case_id) ===
+            Number(caseRecord.id) &&
+            Number(step.step_no) ===
+            Number(caseRecord.current_step)
+    );
 
 const currentTemplate =
     pdiStepTemplates.find(
@@ -932,11 +966,7 @@ const currentTemplate =
 
 caseRecord.current_step_target_hours =
     Number(currentTemplate?.target_hours || 0);
-    console.log(
-    'SLA target attached:',
-    caseRecord.current_step,
-    caseRecord.current_step_target_hours
-);
+
       caseRecord.current_step_activity =
         currentStep?.activity || '-';
 
@@ -1496,12 +1526,22 @@ function renderAwaitingArrivalTable() {
                             </td>
 
                             <td>
-                                ${classification}
-                            </td>
+    ${
+        classification === 'Sold'
+            ? '<span class="pdi-badge pdi-badge-sold">Sold</span>'
+            : classification === 'Allocated'
+                ? '<span class="pdi-badge pdi-badge-priority-medium">Allocated</span>'
+                : classification === 'Stock'
+                    ? '<span class="pdi-badge pdi-badge-stock">Stock</span>'
+                    : '-'
+    }
+</td>
 
                             <td>
-                                Awaiting Arrival
-                            </td>
+    <span class="pdi-badge pdi-badge-awaiting">
+        Awaiting Arrival
+    </span>
+</td>
 
                             <td>
                             <button
@@ -3829,7 +3869,9 @@ const canAction =
   const isCurrentPhase =
   Number(step.phase_no) ===
   Number(selectedCase?.current_phase);
-
+const isCurrentStep =
+    Number(step.step_no) ===
+    Number(selectedCase?.current_step);
 let actionButton = '';
 
 const canReopen =
@@ -3849,7 +3891,7 @@ if (canReopen) {
     `;
 
 } else if (
-    isCurrentPhase &&
+    isCurrentStep &&
     !isCompleted &&
     canAction
 ) {
