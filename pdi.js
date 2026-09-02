@@ -996,7 +996,53 @@ function initialisePreArrivalOrderForm() {
     if (!saveButton) {
         return;
     }
+if (!saveButton) {
+    return;
+}
+   const userRoles =
+    (pdiUserProfile?.roles || [])
+        .map(
+            role =>
+                String(role)
+                    .toLowerCase()
+                    .trim()
+        );
 
+const canLoadPreArrival =
+    pdiUserProfile?.is_active === true &&
+    (
+        pdiUserProfile?.is_admin === true ||
+        userRoles.includes('sales admin')
+    );
+
+const preArrivalForm =
+    document.querySelector(
+        '#preArrivalOrderSection .prearrival-form-grid'
+    );
+
+const preArrivalActions =
+    document.querySelector(
+        '#preArrivalOrderSection .form-actions'
+    );
+if (preArrivalForm) {
+    preArrivalForm.style.display = '';
+}
+
+if (preArrivalActions) {
+    preArrivalActions.style.display = '';
+}
+if (!canLoadPreArrival) {
+
+    if (preArrivalForm) {
+        preArrivalForm.style.display = 'none';
+    }
+
+    if (preArrivalActions) {
+        preArrivalActions.style.display = 'none';
+    }
+
+    return;
+} 
     saveButton.onclick =
         async function () {
 
@@ -4020,14 +4066,367 @@ function attachPdiStepButtons() {
               );
 
 
-            openPdiStepModal(
-              stepId
-            );
+           const stepRecord =
+    selectedPdiSteps.find(
+        step =>
+            Number(step.id) ===
+            Number(stepId)
+    );
+
+if (
+    Number(stepRecord?.step_no) === 42
+) {
+    openModificationReportedModal(
+        stepRecord
+    );
+
+    return;
+}
+
+openPdiStepModal(
+    stepId
+);
           }
         );
       }
     );
 }
+
+function openModificationReportedModal(stepRecord) {
+
+    const existingModal =
+        document.getElementById(
+            'modificationReportedModal'
+        );
+
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const modal =
+        document.createElement('div');
+
+    modal.id =
+        'modificationReportedModal';
+
+    modal.className =
+        'pdi-modal-overlay';
+
+    modal.innerHTML = `
+        <div class="pdi-modal-card">
+            <h3>
+                Modifications Reported
+            </h3>
+
+            <p>
+                Were any modifications made to this vehicle?
+            </p>
+
+            <label>
+                Modifications
+            </label>
+
+            <select id="modificationReportedValue">
+                <option value="">
+                    Select...
+                </option>
+                <option value="No">
+                    No
+                </option>
+                <option value="Yes">
+                    Yes
+                </option>
+            </select>
+
+            <div
+                id="modificationProofWrap"
+                style="display:none;"
+            >
+                <label>
+                    Supporting Documentation
+                </label>
+
+                <input
+                    type="file"
+                    id="modificationProofFile"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                />
+
+                <small>
+                    Proof is required when modifications are reported.
+                </small>
+            </div>
+
+            <div
+                id="modificationReportedMessage"
+                class="modal-message"
+            ></div>
+
+            <div class="pdi-modal-actions">
+                <button
+                    type="button"
+                    id="cancelModificationReported"
+                    class="secondary-button"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="button"
+                    id="saveModificationReported"
+                    class="primary-button"
+                >
+                    Complete Step
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(
+        modal
+    );
+
+    const select =
+        document.getElementById(
+            'modificationReportedValue'
+        );
+
+    const proofWrap =
+        document.getElementById(
+            'modificationProofWrap'
+        );
+
+    const proofFile =
+        document.getElementById(
+            'modificationProofFile'
+        );
+
+    const message =
+        document.getElementById(
+            'modificationReportedMessage'
+        );
+
+    select.addEventListener(
+        'change',
+        () => {
+
+            proofWrap.style.display =
+                select.value === 'Yes'
+                    ? 'block'
+                    : 'none';
+        }
+    );
+
+    document
+        .getElementById(
+            'cancelModificationReported'
+        )
+        .addEventListener(
+            'click',
+            () => {
+                modal.remove();
+            }
+        );
+document
+    .getElementById(
+        'saveModificationReported'
+    )
+    .addEventListener(
+        'click',
+        async () => {
+
+            const responseValue =
+                select.value;
+
+            if (!responseValue) {
+                message.textContent =
+                    'Please select Yes or No.';
+                return;
+            }
+
+            const file =
+                proofFile.files[0] || null;
+
+            if (
+                responseValue === 'Yes' &&
+                !file
+            ) {
+                message.textContent =
+                    'Please attach supporting documentation.';
+                return;
+            }
+
+            const saveButton =
+                document.getElementById(
+                    'saveModificationReported'
+                );
+
+            saveButton.disabled = true;
+
+            message.textContent =
+                'Saving...';
+
+            try {
+
+                let attachmentPath = null;
+                let attachmentName = null;
+
+                /* =========================================
+                   UPLOAD PROOF IF MODIFICATIONS = YES
+                   ========================================= */
+
+                if (
+                    responseValue === 'Yes' &&
+                    file
+                ) {
+
+                    const safeFileName =
+                        file.name
+                            .replace(
+                                /[^a-zA-Z0-9._-]/g,
+                                '_'
+                            );
+
+                    attachmentName =
+                        file.name;
+
+                    attachmentPath =
+                        `pdi-cases/${stepRecord.pdi_case_id}/step-42/${Date.now()}-${safeFileName}`;
+
+                    const {
+                        error: uploadError
+                    } =
+                        await supabaseClient
+                            .storage
+                            .from(
+                                'bodybuilder-photos'
+                            )
+                            .upload(
+                                attachmentPath,
+                                file,
+                                {
+                                    contentType:
+                                        file.type ||
+                                        'application/octet-stream',
+
+                                    upsert: false
+                                }
+                            );
+
+                    if (uploadError) {
+                        throw uploadError;
+                    }
+                }
+
+                /* =========================================
+                   SAVE STEP 42 RESPONSE / EVIDENCE
+                   ========================================= */
+
+             const {
+    error: updateError
+} =
+    await supabaseClient
+        .rpc(
+            'save_pdi_step_response',
+            {
+                target_step_id:
+                    stepRecord.id,
+
+                new_response_value:
+                    responseValue,
+
+                new_attachment_url:
+                    attachmentPath,
+
+                new_attachment_name:
+                    attachmentName,
+
+                new_attachment_required:
+                    responseValue === 'Yes'
+            }
+        );
+
+                if (updateError) {
+                    throw updateError;
+                }
+
+                /* =========================================
+                   COMPLETE STEP THROUGH EXISTING ENGINE
+                   ========================================= */
+
+                const completionComment =
+                    responseValue === 'Yes'
+                        ? 'Modifications reported. Supporting documentation attached.'
+                        : 'No modifications reported.';
+
+                const {
+                    error: completionError
+                } =
+                    await supabaseClient
+                        .rpc(
+                            'complete_pdi_step',
+                            {
+                                target_step_id:
+                                    stepRecord.id,
+
+                                step_comments:
+                                    completionComment
+                            }
+                        );
+
+                if (completionError) {
+                    throw completionError;
+                }
+
+                /* =========================================
+                   CLOSE MODAL + REFRESH WORKFLOW
+                   ========================================= */
+
+                modal.remove();
+
+                await loadPdiCases();
+
+                const stillExists =
+                    pdiCases.find(
+                        item =>
+                            Number(item.id) ===
+                            Number(selectedPdiCaseId)
+                    );
+
+                if (stillExists) {
+
+                    openPdiWorkflow(
+                        selectedPdiCaseId
+                    );
+
+                } else {
+
+                    document
+                        .getElementById(
+                            'workflowSection'
+                        )
+                        ?.classList
+                        .add(
+                            'hidden'
+                        );
+                }
+
+            } catch (error) {
+
+                console.error(
+                    'Could not complete modifications step:',
+                    error
+                );
+
+                message.textContent =
+                    error?.message ||
+                    'Could not save the modifications information.';
+
+                saveButton.disabled = false;
+            }
+        }
+    );
+  }   
 
 document.addEventListener(
     'click',

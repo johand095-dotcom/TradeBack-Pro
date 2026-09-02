@@ -1651,3 +1651,100 @@ padding: 8px 8px;
     color: #176b3a;
     border: 1px solid #b8dfc8;
 }
+/* =========================================================
+   SPECIAL PDI STEP MODALS
+   ========================================================= */
+
+.pdi-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(16, 24, 40, 0.55);
+}
+
+.pdi-modal-card {
+    width: min(520px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 28px;
+    box-shadow: 0 24px 70px rgba(16, 24, 40, 0.25);
+}
+
+.pdi-modal-card h3 {
+    margin: 0 0 10px;
+    color: #083b66;
+    font-size: 24px;
+}
+
+.pdi-modal-card p {
+    margin: 0 0 22px;
+    color: #667085;
+}
+
+.pdi-modal-card label {
+    display: block;
+    margin: 16px 0 7px;
+    font-weight: 700;
+    color: #344054;
+}
+
+.pdi-modal-card select,
+.pdi-modal-card input[type="file"] {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 10px;
+    background: #ffffff;
+    font: inherit;
+}
+
+#modificationProofWrap {
+    margin-top: 16px;
+}
+
+#modificationProofWrap small {
+    display: block;
+    margin-top: 7px;
+    color: #667085;
+}
+
+.modal-message {
+    min-height: 20px;
+    margin-top: 16px;
+    color: #b42318;
+    font-weight: 700;
+}
+
+.pdi-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.pdi-modal-actions button {
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.pdi-modal-actions .secondary-button {
+    border: 1px solid #d0d5dd;
+    background: #ffffff;
+    color: #344054;
+}
+
+.pdi-modal-actions .primary-button {
+    border: 0;
+    background: #083b66;
+    color: #ffffff;
+}
