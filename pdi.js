@@ -3937,7 +3937,7 @@ if (canReopen) {
     `;
 
 } else if (
-    isCurrentStep &&
+    isCurrentPhase &&
     !isCompleted &&
     canAction
 ) {
@@ -4066,7 +4066,7 @@ function attachPdiStepButtons() {
               );
 
 
-           const stepRecord =
+    const stepRecord =
     selectedPdiSteps.find(
         step =>
             Number(step.id) ===
@@ -4083,14 +4083,302 @@ if (
     return;
 }
 
+if (
+    Number(stepRecord?.step_no) === 43
+) {
+    openWarrantyRegistrationModal(
+        stepRecord
+    );
+
+    return;
+}
+
+if (
+    Number(stepRecord?.step_no) === 44
+) {
+    openDigitalDeliveryNoteModal(
+        stepRecord
+    );
+
+    return;
+}
 openPdiStepModal(
     stepId
 );
-          }
-        );
-      }
+        }
     );
+});
 }
+
+
+function openDigitalDeliveryNoteModal(stepRecord) {
+
+    const existingModal =
+        document.getElementById(
+            'digitalDeliveryNoteModal'
+        );
+
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const modal =
+        document.createElement('div');
+
+    modal.id =
+        'digitalDeliveryNoteModal';
+
+    modal.className =
+        'pdi-modal-overlay';
+
+    modal.innerHTML = `
+        <div class="pdi-modal-card delivery-note-modal">
+
+            <h3>
+                Delivery and Acceptance Receipt
+            </h3>
+
+            <p>
+                Complete the customer handover and delivery inspection.
+            </p>
+
+            <div class="delivery-section">
+
+                <h4>
+                    Customer Details
+                </h4>
+
+                <label>
+                    Company / Customer Name
+                </label>
+
+                <input
+                    type="text"
+                    id="deliveryCustomerName"
+                />
+
+                <label>
+                    Responsible Person
+                </label>
+
+                <input
+                    type="text"
+                    id="deliveryResponsiblePerson"
+                />
+
+                <label>
+                    Contact Number
+                </label>
+
+                <input
+                    type="text"
+                    id="deliveryContactNumber"
+                />
+
+            </div>
+
+            <div class="delivery-section">
+
+                <h4>
+                    Vehicle Details
+                </h4>
+
+                <div class="delivery-grid">
+
+                    <div>
+                        <label>
+                            Make
+                        </label>
+
+                        <input
+                            type="text"
+                            id="deliveryMake"
+                            value="${selectedCase?.make || ''}"
+                            readonly
+                        />
+                    </div>
+
+                    <div>
+                        <label>
+                            Model
+                        </label>
+
+                        <input
+                            type="text"
+                            id="deliveryModel"
+                            value="${selectedCase?.model || ''}"
+                            readonly
+                        />
+                    </div>
+
+                    <div>
+                        <label>
+                            VIN
+                        </label>
+
+                        <input
+                            type="text"
+                            id="deliveryVin"
+                            value="${selectedCase?.vin || ''}"
+                            readonly
+                        />
+                    </div>
+
+                    <div>
+                        <label>
+                            Stock No.
+                        </label>
+
+                        <input
+                            type="text"
+                            id="deliveryStockNo"
+                            value="${selectedCase?.stock_no || ''}"
+                            readonly
+                        />
+                    </div>
+
+                    <div>
+                        <label>
+                            Mileage at Delivery
+                        </label>
+
+                        <input
+                            type="number"
+                            id="deliveryMileage"
+                            min="0"
+                        />
+                    </div>
+
+                    <div>
+                        <label>
+                            Delivery Date
+                        </label>
+
+                        <input
+                            type="date"
+                            id="deliveryDate"
+                        />
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="delivery-section">
+
+                <h4>
+                    Handover Checklist
+                </h4>
+
+                <p>
+                    Checklist items will be added in the next step.
+                </p>
+
+            </div>
+
+            <div
+                id="deliveryNoteMessage"
+                class="modal-message"
+            ></div>
+
+            <div class="pdi-modal-actions">
+
+                <button
+                    type="button"
+                    id="cancelDigitalDeliveryNote"
+                    class="secondary-button"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="button"
+                    id="saveDigitalDeliveryNote"
+                    class="primary-button"
+                >
+                    Continue
+                </button>
+
+            </div>
+
+        </div>
+    `;
+
+    document.body.appendChild(
+        modal
+    );
+
+    document
+        .getElementById(
+            'cancelDigitalDeliveryNote'
+        )
+        .addEventListener(
+            'click',
+            () => {
+                modal.remove();
+            }
+        );
+
+    document
+        .getElementById(
+            'saveDigitalDeliveryNote'
+        )
+        .addEventListener(
+            'click',
+            () => {
+
+                const customerName =
+                    document
+                        .getElementById(
+                            'deliveryCustomerName'
+                        )
+                        .value
+                        .trim();
+
+                const responsiblePerson =
+                    document
+                        .getElementById(
+                            'deliveryResponsiblePerson'
+                        )
+                        .value
+                        .trim();
+
+                const mileage =
+                    document
+                        .getElementById(
+                            'deliveryMileage'
+                        )
+                        .value;
+
+                const deliveryDate =
+                    document
+                        .getElementById(
+                            'deliveryDate'
+                        )
+                        .value;
+
+                const message =
+                    document.getElementById(
+                        'deliveryNoteMessage'
+                    );
+
+                if (
+                    !customerName ||
+                    !responsiblePerson ||
+                    !mileage ||
+                    !deliveryDate
+                ) {
+                    message.textContent =
+                        'Please complete all required delivery details.';
+                    return;
+                }
+
+                message.textContent =
+                    'Delivery details captured. Checklist and signatures will follow.';
+            }
+        );
+}
+
 
 function openModificationReportedModal(stepRecord) {
 
@@ -4427,6 +4715,257 @@ document
         }
     );
   }   
+
+function openWarrantyRegistrationModal(stepRecord) {
+
+    const existingModal =
+        document.getElementById(
+            'warrantyRegistrationModal'
+        );
+
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const modal =
+        document.createElement('div');
+
+    modal.id =
+        'warrantyRegistrationModal';
+
+    modal.className =
+        'pdi-modal-overlay';
+
+    modal.innerHTML = `
+        <div class="pdi-modal-card">
+
+            <h3>
+                Warranty Registration
+            </h3>
+
+            <p>
+                Upload proof that the vehicle warranty has been registered.
+            </p>
+
+            <label>
+                Warranty Registration Proof
+            </label>
+
+            <input
+                type="file"
+                id="warrantyProofFile"
+                accept=".pdf,.jpg,.jpeg,.png"
+            />
+
+            <small>
+                Proof of warranty registration is required before this step can be completed.
+            </small>
+
+            <div
+                id="warrantyRegistrationMessage"
+                class="modal-message"
+            ></div>
+
+            <div class="pdi-modal-actions">
+
+                <button
+                    type="button"
+                    id="cancelWarrantyRegistration"
+                    class="secondary-button"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="button"
+                    id="saveWarrantyRegistration"
+                    class="primary-button"
+                >
+                    Complete Step
+                </button>
+
+            </div>
+
+        </div>
+    `;
+
+    document.body.appendChild(
+        modal
+    );
+
+    const proofFile =
+        document.getElementById(
+            'warrantyProofFile'
+        );
+
+    const message =
+        document.getElementById(
+            'warrantyRegistrationMessage'
+        );
+
+    document
+        .getElementById(
+            'cancelWarrantyRegistration'
+        )
+        .addEventListener(
+            'click',
+            () => {
+                modal.remove();
+            }
+        );
+
+    document
+        .getElementById(
+            'saveWarrantyRegistration'
+        )
+        .addEventListener(
+            'click',
+            async () => {
+
+                const file =
+                    proofFile.files[0] || null;
+
+                if (!file) {
+                    message.textContent =
+                        'Please attach proof of warranty registration.';
+                    return;
+                }
+
+                const saveButton =
+                    document.getElementById(
+                        'saveWarrantyRegistration'
+                    );
+
+                saveButton.disabled = true;
+                message.textContent = 'Saving...';
+
+                try {
+
+                    const safeFileName =
+                        file.name.replace(
+                            /[^a-zA-Z0-9._-]/g,
+                            '_'
+                        );
+
+                    const attachmentPath =
+                        `pdi-cases/${stepRecord.pdi_case_id}/step-43/${Date.now()}-${safeFileName}`;
+
+                    const {
+                        error: uploadError
+                    } =
+                        await supabaseClient
+                            .storage
+                            .from(
+                                'bodybuilder-photos'
+                            )
+                            .upload(
+                                attachmentPath,
+                                file,
+                                {
+                                    contentType:
+                                        file.type ||
+                                        'application/octet-stream',
+
+                                    upsert: false
+                                }
+                            );
+
+                    if (uploadError) {
+                        throw uploadError;
+                    }
+
+                    const {
+                        error: updateError
+                    } =
+                        await supabaseClient
+                            .rpc(
+                                'save_pdi_step_response',
+                                {
+                                    target_step_id:
+                                        stepRecord.id,
+
+                                    new_response_value:
+                                        'Warranty Registered',
+
+                                    new_attachment_url:
+                                        attachmentPath,
+
+                                    new_attachment_name:
+                                        file.name,
+
+                                    new_attachment_required:
+                                        true
+                                }
+                            );
+
+                    if (updateError) {
+                        throw updateError;
+                    }
+
+                    const {
+                        error: completionError
+                    } =
+                        await supabaseClient
+                            .rpc(
+                                'complete_pdi_step',
+                                {
+                                    target_step_id:
+                                        stepRecord.id,
+
+                                    step_comments:
+                                        'Warranty registered. Proof of registration attached.'
+                                }
+                            );
+
+                    if (completionError) {
+                        throw completionError;
+                    }
+
+                    modal.remove();
+
+                    await loadPdiCases();
+
+                    const stillExists =
+                        pdiCases.find(
+                            item =>
+                                Number(item.id) ===
+                                Number(selectedPdiCaseId)
+                        );
+
+                    if (stillExists) {
+
+                        openPdiWorkflow(
+                            selectedPdiCaseId
+                        );
+
+                    } else {
+
+                        document
+                            .getElementById(
+                                'workflowSection'
+                            )
+                            ?.classList
+                            .add(
+                                'hidden'
+                            );
+                    }
+
+                } catch (error) {
+
+                    console.error(
+                        'Could not complete warranty registration step:',
+                        error
+                    );
+
+                    message.textContent =
+                        error?.message ||
+                        'Could not save the warranty registration information.';
+
+                    saveButton.disabled = false;
+                }
+            }
+        );
+}
 
 document.addEventListener(
     'click',
