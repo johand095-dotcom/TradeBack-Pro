@@ -294,6 +294,25 @@ function upsertReceiving(record) {
   if (saved) localStorage.setItem(RECEIVING_ACTIVE_KEY, record.receivingNo);
   return saved;
 }
+const RECEIVING_SITE_MAP =
+    new Image();
+
+RECEIVING_SITE_MAP.src =
+    './assets/receiving-site-map.jpg';
+
+const RECEIVING_SITE_MAP_READY =
+    new Promise((resolve, reject) => {
+
+        RECEIVING_SITE_MAP.onload =
+            () => resolve();
+
+        RECEIVING_SITE_MAP.onerror =
+            () => reject(
+                new Error(
+                    'Receiving site map could not be loaded.'
+                )
+            );
+    });
 
 function compressReceivingImage(
     file,
@@ -320,7 +339,15 @@ function compressReceivingImage(
         );
       };
 
-      image.onload = () => {
+     image.onload = async () => {
+      try {
+    await RECEIVING_SITE_MAP_READY;
+} catch (error) {
+    console.warn(
+        'Receiving site map unavailable:',
+        error
+    );
+}
         const scale = Math.min(
           1,
           maxWidth / image.width,
@@ -401,6 +428,40 @@ const panelHeight =
         panelHeight
     );
 
+   
+
+/* ========================================
+   DRAW LOCATION MAP
+   ======================================== */
+
+const mapGap =
+    Math.round(padding * 0.8);
+
+const mapHeight =
+    panelHeight - (padding * 2);
+
+const mapWidth =
+    Math.round(mapHeight * 1.05);
+
+const mapX =
+    padding;
+
+const mapY =
+    panelY + padding;
+
+if (
+    RECEIVING_SITE_MAP.complete &&
+    RECEIVING_SITE_MAP.naturalWidth > 0
+) {
+    context.drawImage(
+        RECEIVING_SITE_MAP,
+        mapX,
+        mapY,
+        mapWidth,
+        mapHeight
+    );
+}
+
     context.fillStyle =
         '#ffffff';
 
@@ -410,6 +471,10 @@ const panelHeight =
     context.textBaseline =
         'top';
 
+       const textX =
+    mapX +
+    mapWidth +
+    mapGap; 
 let textY =
     panelY + padding;
 
@@ -417,7 +482,7 @@ if (stampData.locationText) {
 
     context.fillText(
         stampData.locationText,
-        padding,
+        textX,
         textY
     );
 
@@ -428,7 +493,7 @@ if (stampData.streetAddress) {
 
     context.fillText(
         stampData.streetAddress,
-        padding,
+        textX,
         textY
     );
 
@@ -441,7 +506,7 @@ context.fillText(
     ).toFixed(6)}°  Long ${Number(
         stampData.longitude
     ).toFixed(6)}°`,
-    padding,
+    textX,
     textY
 );
 
@@ -449,7 +514,7 @@ textY += lineHeight;
 
 context.fillText(
     stampData.dateTimeText || '',
-    padding,
+    textX,
     textY
 );
 
@@ -754,7 +819,160 @@ function dataUrlToBlob(dataUrl) {
         }
     );
 }
+const ELT_SITE_LOCATION = {
+    city: 'Johannesburg, Gauteng, South Africa',
+    address: '101 Turffontein Rd, Stafford, Johannesburg, 2197, South Africa',
+    latitude: '-26.233693',
+    longitude: '28.042446'
+};
 
+async function stampReceivingPhoto(blob) {
+    const imageBitmap = await createImageBitmap(blob);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = imageBitmap.width;
+    canvas.height = imageBitmap.height;
+
+    const ctx = canvas.getContext('2d');
+
+    // Draw the original photograph
+    ctx.drawImage(
+        imageBitmap,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    // -----------------------------------------
+    // STAMP AREA
+    // -----------------------------------------
+
+    const stampHeight = Math.round(canvas.height * 0.23);
+    const stampY = canvas.height - stampHeight;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+
+    ctx.fillRect(
+        0,
+        stampY,
+        canvas.width,
+        stampHeight
+    );
+
+    
+
+    // -----------------------------------------
+    // LOCATION INFORMATION
+    // -----------------------------------------
+
+    const textX =
+        mapX +
+        mapWidth +
+        Math.round(canvas.width * 0.025);
+
+    let textY =
+        stampY +
+        Math.round(stampHeight * 0.20);
+
+    const mainFontSize =
+        Math.max(
+            22,
+            Math.round(canvas.width * 0.022)
+        );
+
+    const smallFontSize =
+        Math.max(
+            18,
+            Math.round(canvas.width * 0.018)
+        );
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'middle';
+
+    ctx.font =
+        `600 ${mainFontSize}px Arial`;
+
+    ctx.fillText(
+        ELT_SITE_LOCATION.city,
+        textX,
+        textY
+    );
+
+    textY += mainFontSize * 1.5;
+
+    ctx.font =
+        `${smallFontSize}px Arial`;
+
+    ctx.fillText(
+        ELT_SITE_LOCATION.address,
+        textX,
+        textY
+    );
+
+    textY += smallFontSize * 1.5;
+
+    ctx.fillText(
+        `Lat ${ELT_SITE_LOCATION.latitude}° Long ${ELT_SITE_LOCATION.longitude}°`,
+        textX,
+        textY
+    );
+
+    textY += smallFontSize * 1.5;
+
+    // -----------------------------------------
+    // ACTUAL DATE + TIME
+    // -----------------------------------------
+
+    const now = new Date();
+
+    const date =
+        now.toLocaleDateString(
+            'en-GB'
+        );
+
+    const time =
+        now.toLocaleTimeString(
+            'en-US',
+            {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }
+        );
+
+    ctx.fillText(
+        `${date} ${time} GMT +02:00`,
+        textX,
+        textY
+    );
+
+    // -----------------------------------------
+    // CREATE FINAL JPEG
+    // -----------------------------------------
+
+    return new Promise(
+        (resolve, reject) => {
+            canvas.toBlob(
+                result => {
+                    if (!result) {
+                        reject(
+                            new Error(
+                                'Could not create stamped photo.'
+                            )
+                        );
+
+                        return;
+                    }
+
+                    resolve(result);
+                },
+                'image/jpeg',
+                0.92
+            );
+        }
+    );
+}
 async function uploadReceivingPhoto(
     receivingNo,
     typeId,
@@ -793,6 +1011,8 @@ async function uploadReceivingPhoto(
     const storagePath =
         `${receivingNo}/${safeType}.jpg`;
 
+
+        
     const {
         error: uploadError
     } =

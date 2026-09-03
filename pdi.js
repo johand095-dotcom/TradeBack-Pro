@@ -519,7 +519,7 @@ document
   )
   ?.addEventListener(
     'click',
-    () => {
+    async () => {
 
      wloadPdiCases();
     }
@@ -4073,6 +4073,15 @@ function attachPdiStepButtons() {
             Number(stepId)
     );
 
+  console.log(
+    'PDI Complete clicked:',
+    {
+        stepId,
+        stepRecord,
+        stepNo: stepRecord?.step_no
+    }
+);  
+
 if (
     Number(stepRecord?.step_no) === 42
 ) {
@@ -4112,6 +4121,13 @@ openPdiStepModal(
 
 
 function openDigitalDeliveryNoteModal(stepRecord) {
+
+    const selectedCase =
+        pdiCases.find(
+            item =>
+                Number(item.id) ===
+                Number(selectedPdiCaseId)
+        );
 
     const existingModal =
         document.getElementById(
@@ -4186,9 +4202,7 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                 <div class="delivery-grid">
 
                     <div>
-                        <label>
-                            Make
-                        </label>
+                        <label>Make</label>
 
                         <input
                             type="text"
@@ -4199,9 +4213,7 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                     </div>
 
                     <div>
-                        <label>
-                            Model
-                        </label>
+                        <label>Model</label>
 
                         <input
                             type="text"
@@ -4212,9 +4224,7 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                     </div>
 
                     <div>
-                        <label>
-                            VIN
-                        </label>
+                        <label>VIN</label>
 
                         <input
                             type="text"
@@ -4225,9 +4235,7 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                     </div>
 
                     <div>
-                        <label>
-                            Stock No.
-                        </label>
+                        <label>Stock No.</label>
 
                         <input
                             type="text"
@@ -4264,15 +4272,20 @@ function openDigitalDeliveryNoteModal(stepRecord) {
 
             </div>
 
-            <div class="delivery-section">
+            <div
+                class="delivery-section"
+                id="deliveryChecklistSection"
+            >
 
                 <h4>
                     Handover Checklist
                 </h4>
 
                 <p>
-                    Checklist items will be added in the next step.
+                    Complete each item before continuing.
                 </p>
+
+                <div id="deliveryChecklistItems"></div>
 
             </div>
 
@@ -4304,9 +4317,17 @@ function openDigitalDeliveryNoteModal(stepRecord) {
         </div>
     `;
 
-    document.body.appendChild(
-        modal
-    );
+    document.body.appendChild(modal);
+
+    const message =
+        document.getElementById(
+            'deliveryNoteMessage'
+        );
+
+    const checklistContainer =
+        document.getElementById(
+            'deliveryChecklistItems'
+        );
 
     document
         .getElementById(
@@ -4325,7 +4346,7 @@ function openDigitalDeliveryNoteModal(stepRecord) {
         )
         .addEventListener(
             'click',
-            () => {
+            async () => {
 
                 const customerName =
                     document
@@ -4357,11 +4378,6 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                         )
                         .value;
 
-                const message =
-                    document.getElementById(
-                        'deliveryNoteMessage'
-                    );
-
                 if (
                     !customerName ||
                     !responsiblePerson ||
@@ -4370,16 +4386,645 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                 ) {
                     message.textContent =
                         'Please complete all required delivery details.';
+
                     return;
                 }
 
-                message.textContent =
-                    'Delivery details captured. Checklist and signatures will follow.';
+                const checklistAlreadyLoaded =
+                    checklistContainer.dataset.loaded ===
+                    'true';
+
+                /* =========================================
+                   FIRST CONTINUE - BUILD CHECKLIST
+                   ========================================= */
+
+                if (!checklistAlreadyLoaded) {
+
+                    const checklistItems = [
+                        'Key - Spare Key',
+                        'Jack - Tools - Service Manual',
+                        'Spare Wheel',
+                        '2 Day Temporary Permit',
+                        'Vehicle Comprehensive Insurance',
+                        'Seats',
+                        'Safety Belts',
+                        'Window Winders',
+                        'Interior Light',
+                        'Exterior Lights',
+                        'Fan Heater',
+                        'Air Conditioner (if applicable)',
+                        'Lighter',
+                        'Radio (if applicable)',
+                        'Scratch Marks',
+                        'Dents',
+                        'Chips on Window',
+                        'Door Handles / Locks',
+                        'Fuel Tank Caps',
+                        'Tyre Pressure'
+                    ];
+
+                    checklistContainer.innerHTML =
+                        checklistItems
+                            .map(
+                                (item, index) => `
+                                    <div class="delivery-checklist-row">
+
+                                        <span class="delivery-checklist-number">
+                                            ${index + 1}
+                                        </span>
+
+                                        <span class="delivery-checklist-label">
+                                            ${item}
+                                        </span>
+
+                                        <label>
+                                            <input
+                                                type="radio"
+                                                name="deliveryChecklist_${index}"
+                                                value="Yes"
+                                            />
+                                            Yes
+                                        </label>
+
+                                        <label>
+                                            <input
+                                                type="radio"
+                                                name="deliveryChecklist_${index}"
+                                                value="No"
+                                            />
+                                            No
+                                        </label>
+
+                                    </div>
+                                `
+                            )
+                            .join('');
+
+                    checklistContainer.dataset.loaded =
+                        'true';
+
+                    message.textContent =
+                        'Delivery details captured. Please complete the handover checklist.';
+
+                    document
+                        .getElementById(
+                            'saveDigitalDeliveryNote'
+                        )
+                        .textContent =
+                            'Continue to Signatures';
+
+                    return;
+                }
+
+                /* =========================================
+                   SECOND CONTINUE - VALIDATE CHECKLIST
+                   ========================================= */
+
+                const checklistRows =
+                    Array.from(
+                        document.querySelectorAll(
+                            '.delivery-checklist-row'
+                        )
+                    );
+
+                const incompleteChecklist =
+                    checklistRows.some(
+                        (row, index) =>
+                            !document.querySelector(
+                                `input[name="deliveryChecklist_${index}"]:checked`
+                            )
+                    );
+
+                if (incompleteChecklist) {
+
+                    message.textContent =
+                        'Please complete every handover checklist item before continuing.';
+
+                    return;
+                }
+message.textContent = '';
+
+const existingSignatureSection =
+    document.getElementById(
+        'deliverySignatureSection'
+    );
+
+if (!existingSignatureSection) {
+
+    const signatureSection =
+        document.createElement('div');
+
+    signatureSection.id =
+        'deliverySignatureSection';
+
+    signatureSection.className =
+        'delivery-section';
+
+    signatureSection.innerHTML = `
+        <h4>
+            Delivery Acceptance & Signatures
+        </h4>
+
+        <p>
+            I confirm that the vehicle and listed items have been inspected
+            and accepted at the time of delivery.
+        </p>
+
+        <label>
+            Customer / Responsible Person
+        </label>
+
+        <input
+            type="text"
+            id="deliveryCustomerSignatureName"
+            value="${responsiblePerson}"
+            readonly
+        />
+
+        <label>
+            Customer Signature
+        </label>
+
+        <canvas
+            id="customerDeliverySignature"
+            class="delivery-signature-pad"
+            width="700"
+            height="180"
+        ></canvas>
+
+        <button
+            type="button"
+            id="clearCustomerDeliverySignature"
+            class="secondary-button"
+        >
+            Clear Customer Signature
+        </button>
+
+        <label>
+            Sales Person
+        </label>
+
+        <input
+            type="text"
+            id="deliverySalesPersonName"
+            value="${pdiUserProfile?.full_name || pdiSession?.user?.email || ''}"
+            readonly
+        />
+
+        <label>
+            Sales Person Signature
+        </label>
+
+        <canvas
+            id="salesPersonDeliverySignature"
+            class="delivery-signature-pad"
+            width="700"
+            height="180"
+        ></canvas>
+
+        <button
+            type="button"
+            id="clearSalesPersonDeliverySignature"
+            class="secondary-button"
+        >
+            Clear Sales Person Signature
+        </button>
+    `;
+
+    checklistContainer
+        .closest(
+            '.delivery-section'
+        )
+        .insertAdjacentElement(
+            'afterend',
+            signatureSection
+        );
+
+    setupDeliverySignaturePad(
+        'customerDeliverySignature',
+        'clearCustomerDeliverySignature'
+    );
+
+    setupDeliverySignaturePad(
+        'salesPersonDeliverySignature',
+        'clearSalesPersonDeliverySignature'
+    );
+
+    document
+        .getElementById(
+            'saveDigitalDeliveryNote'
+        )
+        .textContent =
+            'Complete Delivery';
+
+    return;
+}
+const customerCanvas =
+    document.getElementById(
+        'customerDeliverySignature'
+    );
+
+const salesCanvas =
+    document.getElementById(
+        'salesPersonDeliverySignature'
+    );
+
+const customerSignature =
+    customerCanvas.toDataURL();
+
+const salesSignature =
+    salesCanvas.toDataURL();
+
+const blankCustomerCanvas =
+    document.createElement('canvas');
+
+blankCustomerCanvas.width =
+    customerCanvas.width;
+
+blankCustomerCanvas.height =
+    customerCanvas.height;
+
+const blankCustomerSignature =
+    blankCustomerCanvas.toDataURL();
+
+const blankSalesCanvas =
+    document.createElement('canvas');
+
+blankSalesCanvas.width =
+    salesCanvas.width;
+
+blankSalesCanvas.height =
+    salesCanvas.height;
+
+const blankSalesSignature =
+    blankSalesCanvas.toDataURL();
+
+if (
+    customerSignature === blankCustomerSignature ||
+    salesSignature === blankSalesSignature
+) {
+    message.textContent =
+        'Both customer and Sales Person signatures are required before completing delivery.';
+
+    return;
+}
+
+message.textContent =
+    'Saving delivery...';
+
+const saveButton =
+    document.getElementById(
+        'saveDigitalDeliveryNote'
+    );
+
+saveButton.disabled = true;
+
+try {
+
+    // -----------------------------------------
+    // COLLECT DELIVERY DETAILS
+    // -----------------------------------------
+
+    const customerName =
+        document.getElementById(
+            'deliveryCustomerName'
+        ).value.trim();
+
+    const responsiblePerson =
+        document.getElementById(
+            'deliveryResponsiblePerson'
+        ).value.trim();
+
+    const contactNumber =
+        document.getElementById(
+            'deliveryContactNumber'
+        ).value.trim();
+
+    const mileage =
+        Number(
+            document.getElementById(
+                'deliveryMileage'
+            ).value
+        );
+
+    const deliveryDate =
+        document.getElementById(
+            'deliveryDate'
+        ).value;
+
+    const salesPersonName =
+        document.getElementById(
+            'deliverySalesPersonName'
+        ).value.trim();
+
+
+    // -----------------------------------------
+    // COLLECT CHECKLIST
+    // -----------------------------------------
+
+    const checklistData =
+    checklistRows.map(
+        (row, index) => {
+
+            const selected =
+                document.querySelector(
+                    `input[name="deliveryChecklist_${index}"]:checked`
+                );
+
+            const itemLabel =
+                row
+                    .querySelector(
+                        '.delivery-checklist-label'
+                    )
+                    ?.textContent
+                    ?.trim() || '';
+
+            return {
+                item:
+                    itemLabel,
+
+                result:
+                    selected?.value || null
+            };
+        }
+    );
+
+
+    // -----------------------------------------
+    // SAVE DELIVERY RECEIPT
+    // -----------------------------------------
+
+    const {
+        data: receiptId,
+        error: receiptError
+    } =
+        await supabaseClient.rpc(
+            'save_pdi_delivery_receipt',
+            {
+                target_step_id:
+                    Number(stepRecord.id),
+
+                target_case_id:
+                    Number(selectedPdiCaseId),
+
+                new_customer_name:
+                    customerName,
+
+                new_responsible_person:
+                    responsiblePerson,
+
+                new_contact_number:
+                    contactNumber,
+
+                new_mileage:
+                    mileage,
+
+                new_delivery_date:
+                    deliveryDate,
+
+                new_checklist_json:
+                    checklistData,
+
+                new_customer_signature:
+                    customerSignature,
+
+                new_sales_person_name:
+                    salesPersonName,
+
+                new_sales_person_signature:
+                    salesSignature
             }
+        );
+
+    if (receiptError) {
+        throw receiptError;
+    }
+
+    console.log(
+        'Delivery receipt saved:',
+        receiptId
+    );
+
+
+    // -----------------------------------------
+    // COMPLETE STEP 44
+    // -----------------------------------------
+
+   const {
+    error: stepError
+} =
+    await supabaseClient
+        .rpc(
+            'complete_pdi_step',
+            {
+                target_step_id:
+                    stepRecord.id,
+
+                step_comments:
+                    'Vehicle delivered to customer. Digital Delivery and Acceptance Receipt completed.'
+            }
+        );
+
+    if (stepError) {
+        throw stepError;
+    }
+
+
+    // -----------------------------------------
+    // SUCCESS
+    // -----------------------------------------
+
+    message.textContent =
+    'Delivery completed successfully.';
+
+modal.remove();
+
+await loadPdiCases();
+
+const stillExists =
+    pdiCases.find(
+        item =>
+            Number(item.id) ===
+            Number(selectedPdiCaseId)
+    );
+
+if (stillExists) {
+
+    openPdiWorkflow(
+        selectedPdiCaseId
+    );
+
+} else {
+
+    document
+        .getElementById(
+            'workflowSection'
+        )
+        ?.classList
+        .add(
+            'hidden'
         );
 }
 
+} catch (error) {
 
+    console.error(
+        'Could not complete delivery:',
+        error
+    );
+
+    message.textContent =
+        error?.message ||
+        'Could not complete delivery.';
+
+    saveButton.disabled = false;
+}
+            }
+        );
+}
+function setupDeliverySignaturePad(
+    canvasId,
+    clearButtonId
+) {
+
+    const canvas =
+        document.getElementById(
+            canvasId
+        );
+
+    const clearButton =
+        document.getElementById(
+            clearButtonId
+        );
+
+    if (!canvas) {
+        return;
+    }
+
+    const ctx =
+        canvas.getContext('2d');
+
+    let drawing = false;
+
+    const getPosition = event => {
+
+        const rect =
+            canvas.getBoundingClientRect();
+
+        const source =
+            event.touches
+                ? event.touches[0]
+                : event;
+
+        return {
+            x:
+                (source.clientX - rect.left) *
+                (canvas.width / rect.width),
+
+            y:
+                (source.clientY - rect.top) *
+                (canvas.height / rect.height)
+        };
+    };
+
+    const startDrawing = event => {
+
+        event.preventDefault();
+
+        drawing = true;
+
+        const position =
+            getPosition(event);
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            position.x,
+            position.y
+        );
+    };
+
+    const draw = event => {
+
+        if (!drawing) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const position =
+            getPosition(event);
+
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+
+        ctx.lineTo(
+            position.x,
+            position.y
+        );
+
+        ctx.stroke();
+    };
+
+    const stopDrawing = () => {
+        drawing = false;
+    };
+
+    canvas.addEventListener(
+        'mousedown',
+        startDrawing
+    );
+
+    canvas.addEventListener(
+        'mousemove',
+        draw
+    );
+
+    canvas.addEventListener(
+        'mouseup',
+        stopDrawing
+    );
+
+    canvas.addEventListener(
+        'mouseleave',
+        stopDrawing
+    );
+
+    canvas.addEventListener(
+        'touchstart',
+        startDrawing,
+        {
+            passive: false
+        }
+    );
+
+    canvas.addEventListener(
+        'touchmove',
+        draw,
+        {
+            passive: false
+        }
+    );
+
+    canvas.addEventListener(
+        'touchend',
+        stopDrawing
+    );
+
+    clearButton
+        ?.addEventListener(
+            'click',
+            () => {
+
+                ctx.clearRect(
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height
+                );
+            }
+        );
+}
 function openModificationReportedModal(stepRecord) {
 
     const existingModal =

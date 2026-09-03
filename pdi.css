@@ -1748,3 +1748,153 @@ padding: 8px 8px;
     background: #083b66;
     color: #ffffff;
 }
+
+.delivery-note-modal {
+    width: min(760px, 100%);
+}
+
+.delivery-section {
+    margin-top: 24px;
+}
+
+.delivery-section h4 {
+    margin: 0 0 14px;
+    color: #083b66;
+    font-size: 18px;
+}
+
+.delivery-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.delivery-note-modal input,
+.delivery-note-modal select,
+.delivery-note-modal textarea {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 10px;
+    font: inherit;
+    box-sizing: border-box;
+}
+
+@media (max-width: 700px) {
+    .delivery-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.delivery-checklist-row {
+    display: grid;
+    grid-template-columns: 36px minmax(220px, 1fr) 90px 90px;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #edf1f5;
+}
+
+.delivery-checklist-number {
+    font-weight: 700;
+    color: #083b66;
+}
+
+.delivery-checklist-label {
+    font-weight: 600;
+    color: #344054;
+}
+
+.delivery-checklist-row label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 0;
+    font-weight: 600;
+}
+
+.delivery-checklist-row input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    min-height: 0;
+    margin: 0;
+}
+
+@media (max-width: 700px) {
+    .delivery-checklist-row {
+        grid-template-columns: 30px 1fr;
+    }
+
+    .delivery-checklist-row label {
+        justify-content: flex-start;
+        grid-column: 2;
+    }
+}
+/* =========================================================
+   STEP 44 - DELIVERY CHECKLIST FINAL LAYOUT OVERRIDE
+   ========================================================= */
+
+.delivery-note-modal .delivery-checklist-row {
+    display: grid;
+    grid-template-columns: 40px minmax(280px, 1fr) 80px 80px;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 8px;
+    border-bottom: 1px solid #e5eaf0;
+}
+
+.delivery-note-modal .delivery-checklist-number {
+    font-weight: 700;
+    color: #083b66;
+    text-align: center;
+}
+
+.delivery-note-modal .delivery-checklist-label {
+    font-weight: 600;
+    color: #344054;
+}
+
+.delivery-note-modal .delivery-checklist-row label {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 7px;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-weight: 600;
+}
+
+.delivery-note-modal .delivery-checklist-row input[type="radio"] {
+    width: 18px !important;
+    height: 18px !important;
+    min-height: 18px !important;
+    max-width: 18px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    flex: 0 0 18px;
+}
+
+@media (max-width: 700px) {
+    .delivery-note-modal .delivery-checklist-row {
+        grid-template-columns: 30px 1fr 70px 70px;
+        gap: 8px;
+    }
+}
+.delivery-signature-pad {
+    width: 100%;
+    height: 180px;
+    display: block;
+    margin-top: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #b8c4d1;
+    border-radius: 10px;
+    background: #ffffff;
+    touch-action: none;
+    cursor: crosshair;
+}
+
+#deliverySignatureSection .secondary-button {
+    margin-bottom: 18px;
+}
