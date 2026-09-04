@@ -1589,25 +1589,204 @@ function renderAwaitingArrivalTable() {
     </span>
 </td>
 
-                            <td>
-                            <button
-    type="button"
-    class="workflow-action-btn prearrival-stock-btn"
-    data-case-id="${item.id}"
-    >
+              <td>
+    <div class="prearrival-action-group">
 
-    ${
-        item.stock_no
-            ? 'Edit Stock No.'
-            : 'Allocate Stock No.'
-    }
+        <button
+            type="button"
+            class="workflow-action-btn prearrival-stock-btn"
+            data-case-id="${item.id}"
+        >
+            ${
+                item.stock_no
+                    ? 'Edit Stock No.'
+                    : 'Allocate Stock No.'
+            }
+        </button>
+
+     <button
+    type="button"
+    class="workflow-action-btn prearrival-classification-btn"
+    data-case-id="${item.id}"
+    data-classification="${classification}"
+>
+    Change
 </button>
-                            </td>
+
+    </div>
+</td>              
                         </tr>
                     `;
                 }
             )
             .join('');
+
+document
+    .querySelectorAll(
+        '.prearrival-classification-btn'
+    )
+    .forEach(button => {
+
+        button.onclick =
+            async function () {
+
+                const caseId =
+                    Number(
+                        button.dataset.caseId
+                    );
+
+                const selectedCase =
+                    pdiCases.find(
+                        item =>
+                            Number(item.id) === caseId
+                    );
+
+                if (!selectedCase) {
+                    alert(
+                        'The vehicle record could not be found.'
+                    );
+                    return;
+                }
+
+              
+
+              const currentClassification =
+    selectedCase.stock_classification ||
+    'Stock';
+
+const classificationModal =
+    document.getElementById(
+        'classificationModal'
+    );
+
+const currentClassificationDisplay =
+    document.getElementById(
+        'currentClassificationDisplay'
+    );
+
+const classificationSelect =
+    document.getElementById(
+        'classificationSelect'
+    );
+
+const saveClassificationButton =
+    document.getElementById(
+        'saveClassificationButton'
+    );
+
+const cancelClassificationButton =
+    document.getElementById(
+        'cancelClassificationButton'
+    );
+
+const closeClassificationModalButton =
+    document.getElementById(
+        'closeClassificationModalButton'
+    );
+
+if (
+    !classificationModal ||
+    !currentClassificationDisplay ||
+    !classificationSelect ||
+    !saveClassificationButton
+) {
+    alert(
+        'Classification modal could not be loaded.'
+    );
+    return;
+}
+
+currentClassificationDisplay.textContent =
+    currentClassification;
+
+classificationSelect.value =
+    currentClassification;
+
+classificationModal.classList.remove(
+    'hidden'
+);
+
+const closeClassificationModal = () => {
+    classificationModal.classList.add(
+        'hidden'
+    );
+};
+
+cancelClassificationButton.onclick =
+    closeClassificationModal;
+
+closeClassificationModalButton.onclick =
+    closeClassificationModal;
+
+saveClassificationButton.onclick =
+    async () => {
+
+        const newClassification =
+            classificationSelect.value;
+
+        if (!newClassification) {
+            alert(
+                'Please select a classification.'
+            );
+            return;
+        }
+
+        if (
+            newClassification ===
+            currentClassification
+        ) {
+            alert(
+                `This vehicle is already classified as ${newClassification}.`
+            );
+            return;
+        }
+
+                try {
+
+                    const {
+                        error
+                    } =
+                        await supabaseClient
+                            .from(
+                                'pdi_cases'
+                            )
+                            .update({
+                                stock_classification:
+                                    newClassification
+                            })
+                            .eq(
+                                'id',
+                                selectedCase.id
+                            );
+
+                    if (error) {
+                        throw error;
+                    }
+
+                    await loadPdiCases();
+
+                    renderPdiDashboard();
+
+                    alert(
+                        `Classification updated to ${newClassification}.`
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        'Could not update stock classification:',
+                        error
+                    );
+
+                    alert(
+                        'The stock classification could not be updated.'
+                    );
+        }
+};
+
+};
+});        
+
     document
     .querySelectorAll(
         '.prearrival-stock-btn'
@@ -1695,6 +1874,130 @@ alert(
 };
     });
 }
+document
+    .querySelectorAll(
+        '.prearrival-classification-btn'
+    )
+    .forEach(button => {
+
+        button.onclick =
+            async function () {
+
+                const caseId =
+                    Number(
+                        button.dataset.caseId
+                    );
+
+                const selectedCase =
+                    pdiCases.find(
+                        item =>
+                            Number(item.id) === caseId
+                    );
+
+                if (!selectedCase) {
+                    alert(
+                        'The vehicle record could not be found.'
+                    );
+                    return;
+                }
+
+                const currentClassification =
+                    selectedCase.stock_classification ||
+                    'Stock';
+
+                const enteredValue =
+                    prompt(
+                        'Enter the new classification:\n\nStock\nAllocated\nSold',
+                        currentClassification
+                    );
+
+                if (enteredValue === null) {
+                    return;
+                }
+
+                const cleanedValue =
+                    enteredValue
+                        .trim()
+                        .toLowerCase();
+
+                const classificationMap = {
+                    stock: 'Stock',
+                    allocated: 'Allocated',
+                    sold: 'Sold'
+                };
+
+                const newClassification =
+                    classificationMap[
+                        cleanedValue
+                    ];
+
+                if (!newClassification) {
+                    alert(
+                        'Please enter Stock, Allocated or Sold.'
+                    );
+                    return;
+                }
+
+                if (
+                    newClassification ===
+                    currentClassification
+                ) {
+                    alert(
+                        `The vehicle is already classified as ${newClassification}.`
+                    );
+                    return;
+                }
+
+                try {
+
+                    const {
+                        error
+                    } =
+                        await supabaseClient
+                            .from(
+                                'pdi_cases'
+                            )
+                            .update({
+                                stock_classification:
+                                    newClassification
+                            })
+                            .eq(
+                                'id',
+                                selectedCase.id
+                            );
+
+                    if (error) {
+                        throw error;
+                    }
+
+                    await loadPdiCases();
+
+                    renderPdiDashboard();
+
+                    const priorityMap = {
+                        Stock: 'LOW',
+                        Allocated: 'MEDIUM',
+                        Sold: 'HIGH'
+                    };
+
+                    alert(
+                        `Classification updated to ${newClassification}.\nPriority is now ${priorityMap[newClassification]}.`
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        'Could not update stock classification:',
+                        error
+                    );
+
+                    alert(
+                        'The stock classification could not be updated. Please check the browser console.'
+                    );
+                }
+            };
+    });
+
 
 /* =========================================================
    ACTIVE VEHICLE TABLE
@@ -1816,7 +2119,19 @@ function renderPdiVehicleTable() {
             );
 const sla =
     getStepSlaStatus(item);
+const classification =
+    item.stock_classification ||
+    'Stock';
 
+const priority =
+    item.commercial_priority ||
+    (
+        classification === 'Sold'
+            ? 'High'
+            : classification === 'Allocated'
+                ? 'Medium'
+                : 'Low'
+    );
           return `
             <tr>
 
@@ -1831,7 +2146,31 @@ const sla =
               <td>
                 ${item.vin || '-'}
               </td>
+             <td>
+    ${
+        classification === 'Sold'
+            ? '<span class="pdi-badge pdi-badge-sold">Sold</span>'
+            : classification === 'Allocated'
+                ? '<span class="pdi-badge pdi-badge-priority-medium">Allocated</span>'
+                : '<span class="pdi-badge pdi-badge-stock">Stock</span>'
+    }
+</td>
 
+<td>
+    ${
+        priority === 'High'
+            ? '<span class="pdi-badge pdi-priority-high">High</span>'
+            : priority === 'Medium'
+                ? '<span class="pdi-badge pdi-priority-medium">Medium</span>'
+                : '<span class="pdi-badge pdi-priority-low">Low</span>'
+    }
+</td>
+
+<td>
+    ${getPhaseLabel(
+        item.current_phase
+    )}
+</td>
               <td>
                 ${getPhaseLabel(
                   item.current_phase
@@ -2331,6 +2670,190 @@ initialiseBodybuilderPhase(
         selectedCase.started_at
       );
 
+    const classificationElement =
+    document.getElementById(
+        'workflowStockClassification'
+    );
+
+const changeClassificationBtn =
+    document.getElementById(
+        'changeClassificationBtn'
+    );
+
+if (classificationElement) {
+    classificationElement.textContent =
+        selectedCase.stock_classification ||
+        'Stock';
+}
+
+if (changeClassificationBtn) {
+
+    const canChangeClassification =
+        userCanHandlePdiRole(
+            'Sales Admin'
+        );
+
+    changeClassificationBtn.hidden =
+        !canChangeClassification;
+
+
+       changeClassificationBtn.onclick =
+    () => {
+
+        const currentClassification =
+            selectedCase.stock_classification ||
+            'Stock';
+
+        const classificationModal =
+            document.getElementById(
+                'classificationModal'
+            );
+
+        const currentClassificationDisplay =
+            document.getElementById(
+                'currentClassificationDisplay'
+            );
+
+        const classificationSelect =
+            document.getElementById(
+                'classificationSelect'
+            );
+
+        const saveClassificationButton =
+            document.getElementById(
+                'saveClassificationButton'
+            );
+
+        const cancelClassificationButton =
+            document.getElementById(
+                'cancelClassificationButton'
+            );
+
+        const closeClassificationModalButton =
+            document.getElementById(
+                'closeClassificationModalButton'
+            );
+
+        if (
+            !classificationModal ||
+            !currentClassificationDisplay ||
+            !classificationSelect ||
+            !saveClassificationButton
+        ) {
+            alert(
+                'Classification modal could not be loaded.'
+            );
+            return;
+        }
+
+        currentClassificationDisplay.textContent =
+            currentClassification;
+
+        classificationSelect.value =
+            currentClassification;
+
+        classificationModal.classList.remove(
+            'hidden'
+        );
+
+        const closeClassificationModal =
+            () => {
+                classificationModal.classList.add(
+                    'hidden'
+                );
+            };
+
+        if (cancelClassificationButton) {
+            cancelClassificationButton.onclick =
+                closeClassificationModal;
+        }
+
+        if (closeClassificationModalButton) {
+            closeClassificationModalButton.onclick =
+                closeClassificationModal;
+        }
+
+        saveClassificationButton.onclick =
+            async () => {
+
+                const newClassification =
+                    classificationSelect.value;
+
+                if (!newClassification) {
+                    alert(
+                        'Please select a classification.'
+                    );
+                    return;
+                }
+
+                if (
+                    newClassification ===
+                    currentClassification
+                ) {
+                    alert(
+                        `This vehicle is already classified as ${newClassification}.`
+                    );
+                    return;
+                }
+
+                try {
+
+                    const {
+                        error
+                    } =
+                        await supabaseClient
+                            .from(
+                                'pdi_cases'
+                            )
+                            .update({
+                                stock_classification:
+                                    newClassification
+                            })
+                            .eq(
+                                'id',
+                                selectedCase.id
+                            );
+
+                    if (error) {
+                        throw error;
+                    }
+
+                    selectedCase.stock_classification =
+                        newClassification;
+
+                    classificationElement.textContent =
+                        newClassification;
+
+                    closeClassificationModal();
+
+                    await loadPdiCases();
+
+                    renderPdiDashboard();
+
+                    const priorityMap = {
+                        Stock: 'LOW',
+                        Allocated: 'MEDIUM',
+                        Sold: 'HIGH'
+                    };
+
+                    alert(
+                        `Classification updated to ${newClassification}.\nPriority is now ${priorityMap[newClassification]}.`
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        'Could not update stock classification:',
+                        error
+                    );
+
+                    alert(
+                        'The stock classification could not be updated. Please check the browser console.'
+                    );
+                }
+            };
+    }; 
+}  
 
 const expectedCompletionElement =
     document.getElementById(
@@ -6343,6 +6866,48 @@ async function renderMyPdiActions() {
      Build action cards
   ------------------------------------------------------- */
 
+const priorityRank = {
+    High: 1,
+    Medium: 2,
+    Low: 3
+};
+
+myActions.sort((a, b) => {
+
+    const classificationA =
+        a.caseRecord.stock_classification ||
+        'Stock';
+
+    const classificationB =
+        b.caseRecord.stock_classification ||
+        'Stock';
+
+    const priorityA =
+        a.caseRecord.commercial_priority ||
+        (
+            classificationA === 'Sold'
+                ? 'High'
+                : classificationA === 'Allocated'
+                    ? 'Medium'
+                    : 'Low'
+        );
+
+    const priorityB =
+        b.caseRecord.commercial_priority ||
+        (
+            classificationB === 'Sold'
+                ? 'High'
+                : classificationB === 'Allocated'
+                    ? 'Medium'
+                    : 'Low'
+        );
+
+    return (
+        priorityRank[priorityA] -
+        priorityRank[priorityB]
+    );
+});
+
   container.innerHTML =
     myActions
       .map(
@@ -6356,7 +6921,22 @@ async function renderMyPdiActions() {
               .filter(Boolean)
               .join(' ') ||
             '-';
+            const classification =
+    item.caseRecord.stock_classification ||
+    'Stock';
 
+const priority =
+    item.caseRecord.commercial_priority ||
+    (
+        classification === 'Sold'
+            ? 'High'
+            : classification === 'Allocated'
+                ? 'Medium'
+                : 'Low'
+    );
+
+const priorityLabel =
+    `${classification.toUpperCase()} · ${priority.toUpperCase()}`;
 
           return `
             <div class="workflow-step current">
@@ -6368,13 +6948,22 @@ async function renderMyPdiActions() {
 
               <div class="step-info">
 
-                <strong>
-                  ${escapePdiHtml(vehicle)}
-                </strong>
+              <strong>
+    ${escapePdiHtml(vehicle)}
+</strong>
 
+<span class="my-action-priority-badge ${
+    priority === 'High'
+        ? 'priority-high'
+        : priority === 'Medium'
+            ? 'priority-medium'
+            : 'priority-low'
+}">
+    ${escapePdiHtml(priorityLabel)}
+</span>
 
-                <span>
-                  VIN:
+<span>
+    VIN:
                   ${escapePdiHtml(
                     item.caseRecord.vin ||
                     '-'

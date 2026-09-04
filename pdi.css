@@ -1898,3 +1898,238 @@ padding: 8px 8px;
 #deliverySignatureSection .secondary-button {
     margin-bottom: 18px;
 }
+.workflow-classification-card{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.workflow-small-btn{
+    padding:10px 14px;
+    border:1px solid #0b4a86;
+    border-radius:10px;
+    background:#fff;
+    color:#0b4a86;
+    font-weight:600;
+    cursor:pointer;
+    transition:.2s;
+}
+
+.workflow-small-btn:hover{
+    background:#0b4a86;
+    color:#fff;
+}
+
+.prearrival-action-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.prearrival-classification-btn {
+    width: 100%;
+    min-width: 0;
+    padding: 12px 14px;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+.prearrival-action-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.prearrival-classification-btn {
+    min-width: 150px;
+    padding: 12px 16px;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+.classification-modal-card {
+    max-width: 750px;
+}
+
+.classification-field {
+    margin-top: 20px;
+}
+
+.classification-field label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
+.classification-field select {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 10px;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
+.classification-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.classification-modal-actions .workflow-action-btn {
+    min-width: 150px;
+    padding: 12px 18px;
+    border-radius: 10px;
+}
+
+.classification-modal-actions .secondary {
+    background: #ffffff;
+    color: #003b67;
+    border: 1px solid #d0d5dd;
+}
+#preArrivalTable th:last-child,
+#preArrivalTable td:last-child {
+    min-width: 190px;
+    width: 190px;
+}
+
+#preArrivalTable th:nth-last-child(2),
+#preArrivalTable td:nth-last-child(2) {
+    min-width: 150px;
+}
+
+#preArrivalTable th:nth-last-child(3),
+#preArrivalTable td:nth-last-child(3) {
+    min-width: 145px;
+}
+
+.prearrival-classification-btn {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+#preArrivalTable th:nth-last-child(3),
+#preArrivalTable td:nth-last-child(3) {
+    min-width: 150px;
+    padding-right: 18px;
+}
+
+#preArrivalTable th:nth-last-child(2),
+#preArrivalTable td:nth-last-child(2) {
+    min-width: 155px;
+    padding-left: 18px;
+}
+.prearrival-classification-btn {
+    width: 100%;
+    min-width: 0;
+    padding: 12px 14px;
+    white-space: nowrap;
+    box-sizing: border-box;
+
+    background: #ffffff;
+    color: #003b67;
+    border: 1px solid #0b4a86;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.prearrival-classification-btn:hover {
+    background: #eef5fb;
+}
+/* =========================================================
+   FIX CLASSIFICATION / STATUS HEADER SPACING
+========================================================= */
+
+#preArrivalTable th:nth-child(8),
+#preArrivalTable td:nth-child(8) {
+    min-width: 150px;
+    padding-right: 24px;
+}
+
+#preArrivalTable th:nth-child(9),
+#preArrivalTable td:nth-child(9) {
+    min-width: 160px;
+    padding-left: 24px;
+}
+/* =========================================================
+   PRE-ARRIVAL TABLE - FINAL COLUMN SPACING
+   ========================================================= */
+
+.workflow-table th.prearrival-classification-col {
+    min-width: 125px;
+    width: 125px;
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+.workflow-table th.prearrival-status-col {
+    min-width: 145px;
+    width: 145px;
+    padding-left: 18px;
+    padding-right: 18px;
+}
+
+.workflow-table th.prearrival-action-col {
+    min-width: 130px;
+    width: 130px;
+    padding-left: 16px;
+    padding-right: 16px;
+}
+.table-wrapper {
+    overflow-x: auto;
+}
+
+.workflow-table {
+    min-width: 1200px;
+    width: 100%;
+    table-layout: auto;
+}
+/* =========================================================
+   VEHICLES IN PROGRESS TABLE WIDTH
+========================================================= */
+
+#pdiVehicleTable {
+    min-width: 1450px;
+    width: 100%;
+    table-layout: auto;
+}
+
+#pdiVehicleTableBody td {
+    vertical-align: middle;
+}
+
+#pdiVehicleTable th,
+#pdiVehicleTable td {
+    padding-left: 14px;
+    padding-right: 14px;
+}
+.my-action-priority-badge {
+    display: inline-block;
+    width: fit-content;
+    margin-top: 6px;
+    margin-bottom: 4px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.my-action-priority-badge.priority-high {
+    background: #fdecec;
+    color: #b42318;
+}
+
+.my-action-priority-badge.priority-medium {
+    background: #fff4db;
+    color: #9a6700;
+}
+
+.my-action-priority-badge.priority-low {
+    background: #eef2f6;
+    color: #475467;
+}

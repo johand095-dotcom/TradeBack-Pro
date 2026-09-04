@@ -364,6 +364,19 @@
 
         <table class="workflow-table">
 
+<colgroup>
+    <col>
+    <col>
+    <col>
+    <col>
+    <col>
+    <col>
+    <col>
+    <col style="width: 150px;">
+    <col style="width: 170px;">
+    <col style="width: 150px;">
+</colgroup>
+
             <thead>
                 <tr>
                     <th>Priority</th>
@@ -373,9 +386,9 @@
                       <th>Stock No.</th>
                     <th>Order / PO</th>
                     <th>ETA</th>
-                    <th>Classification</th>
-                    <th>Status</th>
-                    <th>Action</th>
+                   <th class="prearrival-classification-col">Classification</th>
+<th class="prearrival-status-col">Status</th>
+<th class="prearrival-action-col">Action</th>
                   
                 </tr>
             </thead>
@@ -608,7 +621,8 @@
                 <th>
                   VIN
                 </th>
-
+               <th>Classification</th>
+               <th>Priority</th>
                 <th>
                   Current Stage
                 </th>
@@ -775,6 +789,22 @@
             </strong>
 
           </div>
+
+      <div class="workflow-classification-card">
+    <span>Stock Classification</span>
+
+    <strong id="workflowStockClassification">
+        -
+    </strong>
+
+    <button
+        id="changeClassificationBtn"
+        class="workflow-small-btn"
+        type="button"
+    >
+        Change Classification
+    </button>
+</div>    
 
 <!-- EXPECTED COMPLETION -->
 
@@ -1550,6 +1580,98 @@
 
   </div>
 
+  <!-- =========================================================
+     STOCK CLASSIFICATION MODAL
+========================================================= -->
+
+<div
+    id="classificationModal"
+    class="modal-overlay hidden"
+>
+    <div class="modal-card classification-modal-card">
+
+        <div class="modal-header">
+
+            <div>
+                <span>
+                    Vehicle Allocation
+                </span>
+
+                <h2>
+                    Update Stock Classification
+                </h2>
+            </div>
+
+            <button
+                id="closeClassificationModalButton"
+                type="button"
+                class="close-button"
+            >
+                ×
+            </button>
+
+        </div>
+
+        <div class="modal-detail">
+
+            <span>
+                Current Classification
+            </span>
+
+            <strong id="currentClassificationDisplay">
+                -
+            </strong>
+
+        </div>
+
+        <div class="classification-field">
+
+            <label for="classificationSelect">
+                New Classification
+            </label>
+
+            <select id="classificationSelect">
+                <option value="">
+                    Select classification...
+                </option>
+
+                <option value="Stock">
+                    Stock — Low Priority
+                </option>
+
+                <option value="Allocated">
+                    Allocated — Medium Priority
+                </option>
+
+                <option value="Sold">
+                    Sold — High Priority
+                </option>
+            </select>
+
+        </div>
+
+        <div class="classification-modal-actions">
+
+            <button
+                id="cancelClassificationButton"
+                type="button"
+                class="workflow-action-btn secondary"
+            >
+                Cancel
+            </button>
+
+            <button
+                id="saveClassificationButton"
+                type="button"
+                class="workflow-action-btn"
+            >
+                Save Classification
+            </button>
+
+        </div>
+
+    </div>
+</div>
 
   <script src="pdi.js?v=1.0"></script>
 
