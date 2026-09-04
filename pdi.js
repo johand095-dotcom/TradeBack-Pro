@@ -1359,7 +1359,48 @@ function renderPdiDashboard() {
     .textContent =
       readyCollection.length;
 renderAwaitingArrivalTable();
+const highPriorityCount =
+    activeCases.filter(
+        item =>
+            item.stock_classification === 'Sold'
+    ).length;
 
+const mediumPriorityCount =
+    activeCases.filter(
+        item =>
+            item.stock_classification === 'Allocated'
+    ).length;
+
+const lowPriorityCount =
+    activeCases.filter(
+        item =>
+            (
+                item.stock_classification ||
+                'Stock'
+            ) === 'Stock'
+    ).length;
+
+
+document
+    .getElementById(
+        'metricPriorityHigh'
+    )
+    .textContent =
+        highPriorityCount;
+
+document
+    .getElementById(
+        'metricPriorityMedium'
+    )
+    .textContent =
+        mediumPriorityCount;
+
+document
+    .getElementById(
+        'metricPriorityLow'
+    )
+    .textContent =
+        lowPriorityCount;
 }
 
 function renderAwaitingArrivalTable() {
