@@ -1420,15 +1420,14 @@ function renderAwaitingArrivalTable() {
         Stock: 3
     };
 
-    const awaitingArrival =
-        pdiCases
-            .filter(
-                item =>
-                    item.order_status ===
-                        'Awaiting Arrival' ||
-                    item.workflow_status ===
-                        'Awaiting Arrival'
-            )
+   const awaitingArrival =
+    pdiCases
+        .filter(
+            item =>
+                item.ordered_at &&
+                item.order_status === 'Awaiting Arrival' &&
+                !item.received_at
+        )
             .sort(
                 (a, b) => {
 
@@ -2514,6 +2513,131 @@ async function openPdiWorkflow(caseId) {
 
     return;
   }
+
+  const deleteVehicleButton =
+    document.getElementById(
+        'deleteVehicleButton'
+    );
+
+if (deleteVehicleButton) {
+
+    const isFullAdmin =
+        Boolean(
+            pdiUserProfile?.is_admin
+        );
+console.log(
+    'DELETE BUTTON DEBUG:',
+    {
+        pdiUserProfile,
+        is_admin: pdiUserProfile?.is_admin,
+        isFullAdmin,
+        deleteVehicleButton
+    }
+);
+    deleteVehicleButton.classList.toggle(
+        'hidden',
+        !isFullAdmin
+    );
+
+    deleteVehicleButton.onclick =
+        async () => {
+
+            if (!isFullAdmin) {
+                return;
+            }
+
+            const vehicleName =
+                [
+                    selectedCase.make,
+                    selectedCase.model
+                ]
+                    .filter(Boolean)
+                    .join(' ') ||
+                'Vehicle';
+
+            const vin =
+                selectedCase.vin ||
+                '-';
+
+            const confirmed =
+                confirm(
+                    `DELETE VEHICLE?\n\n` +
+                    `${vehicleName}\n` +
+                    `VIN: ${vin}\n\n` +
+                    `This will permanently delete this vehicle and its related PDI workflow data.\n\n` +
+                    `This action cannot be undone.\n\n` +
+                    `Continue?`
+                );
+
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+
+                deleteVehicleButton.disabled =
+                    true;
+
+                deleteVehicleButton.textContent =
+                    'Deleting...';
+
+                const {
+                    error
+                } =
+                    await supabaseClient
+                        .from(
+                            'pdi_cases'
+                        )
+                        .delete()
+                        .eq(
+                            'id',
+                            selectedCase.id
+                        );
+
+                if (error) {
+                    throw error;
+                }
+
+                alert(
+                    'Vehicle deleted successfully.'
+                );
+
+                document
+                    .getElementById(
+                        'workflowSection'
+                    )
+                    ?.classList
+                    .add(
+                        'hidden'
+                    );
+
+                await loadPdiCases();
+
+                renderPdiDashboard();
+                renderPdiVehicleTable();
+                await renderMyPdiActions();
+
+            } catch (error) {
+
+                console.error(
+                    'Could not delete vehicle:',
+                    error
+                );
+
+                alert(
+                    'The vehicle could not be deleted. Please check the browser console.'
+                );
+
+            } finally {
+
+                deleteVehicleButton.disabled =
+                    false;
+
+                deleteVehicleButton.textContent =
+                    'Delete Vehicle';
+            }
+        };
+}
 
 if (
     Number(selectedCase.current_phase) >= 4 &&
