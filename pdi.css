@@ -2223,3 +2223,35 @@ padding: 8px 8px;
     background: #b42318;
     color: #ffffff;
 }
+/* =========================================================
+   REPORTS & DATA EXPORT
+========================================================= */
+
+.reports-export-card {
+    margin-top: 24px;
+}
+
+.reports-export-actions {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.reports-export-actions button {
+    min-width: 240px;
+    padding: 13px 18px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+@media (max-width: 800px) {
+    .reports-export-actions {
+        flex-direction: column;
+    }
+
+    .reports-export-actions button {
+        width: 100%;
+    }
+}

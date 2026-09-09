@@ -7446,3 +7446,252 @@ async function renderWorkflowReceivingPhotos(
         );
     }
 }
+document
+    .getElementById('exportActiveVehiclesButton')
+    ?.addEventListener(
+        'click',
+        () => {
+
+            if (typeof XLSX === 'undefined') {
+                alert(
+                    'Excel export library is not loaded.'
+                );
+                return;
+            }
+
+            const activeCases =
+    pdiCases.filter(
+        item =>
+            item.workflow_status !==
+                'Completed'
+    );
+
+            if (!activeCases.length) {
+                alert(
+                    'There are no active vehicles to export.'
+                );
+                return;
+            }
+
+            const rows =
+                activeCases.map(
+                    item => {
+
+                        const classification =
+                            item.stock_classification ||
+                            'Stock';
+
+                        const priority =
+                            item.commercial_priority ||
+                            (
+                                classification === 'Sold'
+                                    ? 'High'
+                                    : classification === 'Allocated'
+                                        ? 'Medium'
+                                        : 'Low'
+                            );
+
+                        return {
+                            'Receiving No.':
+                                item.receiving_no || '',
+
+                            'Stock No.':
+                                item.stock_no || '',
+
+                            'Make':
+                                item.make || '',
+
+                            'Model':
+                                item.model || '',
+
+                            'VIN':
+                                item.vin || '',
+
+                            'Classification':
+                                classification,
+
+                            'Priority':
+                                priority,
+
+                            'Current Phase':
+                                item.current_phase || '',
+
+                            'Current Step':
+                                item.current_step || '',
+
+                            'Workflow Status':
+                                item.workflow_status || '',
+
+                            'Received Date':
+                                item.received_date || '',
+
+                            'Expected Completion':
+                                item.expected_completion_date || ''
+                        };
+                    }
+                );
+
+            const worksheet =
+                XLSX.utils.json_to_sheet(rows);
+
+            const workbook =
+                XLSX.utils.book_new();
+
+            XLSX.utils.book_append_sheet(
+                workbook,
+                worksheet,
+                'Vehicles In Progress'
+            );
+
+            worksheet['!cols'] = [
+                { wch: 20 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 24 },
+                { wch: 24 },
+                { wch: 16 },
+                { wch: 12 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 18 },
+                { wch: 16 },
+                { wch: 20 }
+            ];
+
+            const today =
+                new Date()
+                    .toISOString()
+                    .slice(0, 10);
+
+            XLSX.writeFile(
+                workbook,
+                `PDI_Vehicles_In_Progress_${today}.xlsx`
+            );
+        }
+    );
+    document
+    .getElementById('exportAwaitingArrivalButton')
+    ?.addEventListener(
+        'click',
+        () => {
+
+            if (typeof XLSX === 'undefined') {
+                alert(
+                    'Excel export library is not loaded.'
+                );
+                return;
+            }
+
+            const awaitingArrival =
+                pdiCases.filter(
+                    item =>
+                        item.ordered_at &&
+                        item.order_status === 'Awaiting Arrival' &&
+                        !item.received_at
+                );
+
+            if (!awaitingArrival.length) {
+                alert(
+                    'There are no vehicles currently awaiting arrival.'
+                );
+                return;
+            }
+
+            const rows =
+                awaitingArrival.map(
+                    item => {
+
+                        const classification =
+                            item.stock_classification ||
+                            'Stock';
+
+                        const priority =
+                            item.commercial_priority ||
+                            (
+                                classification === 'Sold'
+                                    ? 'High'
+                                    : classification === 'Allocated'
+                                        ? 'Medium'
+                                        : 'Low'
+                            );
+
+                        return {
+                            'OEM / Supplier':
+                                item.oem_supplier || '',
+
+                            'Make':
+                                item.make || '',
+
+                            'Model':
+                                item.model || '',
+
+                            'VIN':
+                                item.vin || '',
+
+                            'Stock No.':
+                                item.stock_no || '',
+
+                            'Order / PO Reference':
+                                item.order_reference || '',
+
+                            'OEM ETA':
+                                item.oem_eta || '',
+
+                            'Classification':
+                                classification,
+
+                            'Priority':
+                                priority,
+
+                            'Order Status':
+                                item.order_status || '',
+
+                            'Ordered Date':
+                                item.ordered_at
+                                    ? new Date(
+                                        item.ordered_at
+                                    ).toLocaleDateString(
+                                        'en-ZA'
+                                    )
+                                    : ''
+                        };
+                    }
+                );
+
+            const worksheet =
+                XLSX.utils.json_to_sheet(rows);
+
+            const workbook =
+                XLSX.utils.book_new();
+
+            XLSX.utils.book_append_sheet(
+                workbook,
+                worksheet,
+                'Awaiting Arrival'
+            );
+
+            worksheet['!cols'] = [
+                { wch: 20 },
+                { wch: 14 },
+                { wch: 24 },
+                { wch: 24 },
+                { wch: 14 },
+                { wch: 22 },
+                { wch: 14 },
+                { wch: 16 },
+                { wch: 12 },
+                { wch: 18 },
+                { wch: 16 }
+            ];
+
+            const today =
+                new Date()
+                    .toISOString()
+                    .slice(0, 10);
+
+            XLSX.writeFile(
+                workbook,
+                `PDI_Awaiting_Arrival_${today}.xlsx`
+            );
+        }
+    );
