@@ -7241,6 +7241,7 @@ async function renderWorkflowReceivingPhotos(
         left: 'Left Side View',
         right: 'Right Side View',
         vin: 'VIN Plate',
+         stampedVin: 'Stamped VIN Number',
         engine: 'Engine Plate',
         odometer: 'Odometer'
     };
