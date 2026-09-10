@@ -221,6 +221,7 @@ const ARRIVAL_PHOTO_TYPES = [
   { id: 'left', label: 'Left Side View', required: true },
   { id: 'right', label: 'Right Side View', required: true },
   { id: 'vin', label: 'VIN Plate', required: false },
+    { id: 'stampedVin', label: 'Stamped VIN Number', required: true },
   { id: 'enginePlate', label: 'Engine Plate', required: true },
   { id: 'odometer', label: 'Odometer', required: false }
 ];
