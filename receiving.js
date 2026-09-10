@@ -284,6 +284,188 @@ function saveReceivingDatabase(records) {
   }
 }
 
+async function syncReceivingDatabaseFromSupabase() {
+    try {
+        const {
+            data,
+            error
+        } = await supabaseClient
+            .from('receivings')
+            .select(`
+                receiving_no,
+                stock_no,
+                vin,
+                make,
+                model,
+                received_date,
+                received_time,
+                controller,
+                location,
+                status,
+                result,
+                report,
+                created_at,
+                updated_at
+            `)
+            .order('updated_at', {
+                ascending: false
+            });
+
+        if (error) {
+            throw error;
+        }
+
+        const cloudRecords =
+            (data || []).map(
+                row => {
+
+                    const report =
+                        row.report || {};
+
+                    return {
+                        receivingNo:
+                            row.receiving_no,
+
+                        status:
+                            row.status || 'Draft',
+
+                        result:
+                            row.result || 'Incomplete',
+
+                        fields:
+                            report.fields || {
+                                stockNumber:
+                                    row.stock_no || '',
+                                receivingVin:
+                                    row.vin || '',
+                                receivingMake:
+                                    row.make || '',
+                                receivingModel:
+                                    row.model || '',
+                                receivedDate:
+                                    row.received_date || '',
+                                receivedTime:
+                                    row.received_time || '',
+                                receivingController:
+                                    row.controller || '',
+                                receivingLocation:
+                                    row.location || ''
+                            },
+
+                        state:
+                            report.state || {
+                                items: {},
+                                arrivalPhotos: {}
+                            },
+
+                        signature:
+                            report.signature || null,
+
+                        checklist:
+                            report.checklist || {},
+
+                        controllerComments:
+                            report.controllerComments || '',
+
+                        damageSummary:
+                            report.damageSummary || '',
+
+                        createdAt:
+                            report.createdAt ||
+                            row.created_at ||
+                            null,
+
+                        completedAt:
+                            report.completedAt ||
+                            null,
+
+                        updatedAt:
+                            report.updatedAt ||
+                            row.updated_at ||
+                            null
+                    };
+                }
+            );
+
+        const localRecords =
+            getReceivingDatabase();
+
+        const mergedMap =
+            new Map();
+
+        localRecords.forEach(
+            record => {
+                mergedMap.set(
+                    record.receivingNo,
+                    record
+                );
+            }
+        );
+
+        cloudRecords.forEach(
+            record => {
+
+                const existing =
+                    mergedMap.get(
+                        record.receivingNo
+                    );
+
+                if (
+                    !existing ||
+                    new Date(
+                        record.updatedAt || 0
+                    ) >=
+                    new Date(
+                        existing.updatedAt || 0
+                    )
+                ) {
+                    mergedMap.set(
+                        record.receivingNo,
+                        record
+                    );
+                }
+            }
+        );
+
+        const mergedRecords =
+            Array.from(
+                mergedMap.values()
+            )
+                .sort(
+                    (a, b) =>
+                        new Date(
+                            b.updatedAt || 0
+                        ) -
+                        new Date(
+                            a.updatedAt || 0
+                        )
+                );
+
+        saveReceivingDatabase(
+            mergedRecords
+        );
+
+        renderReceivingLibrary();
+        updateReceivingDashboard();
+
+        console.log(
+            'Receiving records synced from Supabase:',
+            mergedRecords.length
+        );
+
+        return true;
+
+    } catch (error) {
+
+        console.error(
+            'Could not sync receiving records from Supabase:',
+            error
+        );
+
+        return false;
+    }
+}
+
 function upsertReceiving(record) {
   const records = getReceivingDatabase();
   const index = records.findIndex(r => r.receivingNo === record.receivingNo);
@@ -1457,13 +1639,35 @@ async function saveReceivingRecordToCloud(record) {
       item => item.status === 'Fail'
     ).length,
     report: {
-      fields,
-      checklist: cloudChecklist,
-      damageSummary:
+    fields,
+
+    checklist: cloudChecklist,
+
+    damageSummary:
         fields.receivingDamageSummary || '',
-      controllerComments:
-        fields.receivingComments || ''
-    },
+
+    controllerComments:
+        fields.receivingComments || '',
+
+    state:
+        record.state || {
+            items: {},
+            arrivalPhotos: {}
+        },
+
+    signature:
+        record.signature || null,
+
+    createdAt:
+        record.createdAt || null,
+
+    completedAt:
+        record.completedAt || null,
+
+    updatedAt:
+        record.updatedAt ||
+        new Date().toISOString()
+},
     updated_at: new Date().toISOString()
   };
 
@@ -1840,8 +2044,7 @@ localStorage.setItem(
   record.receivingNo
 );
 
-renderReceivingLibrary();
-updateReceivingDashboard();
+await syncReceivingDatabaseFromSupabase();
   };
   const printWhenReady=()=>Promise.all(Array.from(printWindow.document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;}))).then(()=>{completeRecord();setTimeout(()=>{printWindow.focus();printWindow.print();},300);});
   if(printWindow.document.readyState==='complete')printWhenReady();else printWindow.onload=printWhenReady;
