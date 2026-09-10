@@ -584,22 +584,94 @@ if (stampData) {
     const lineHeight =
         Math.round(fontSize * 1.35);
 
-    const hasStreetAddress =
+ const hasStreetAddress =
     Boolean(
         stampData.streetAddress
     );
 
-const textLineCount =
+context.font =
+    `bold ${fontSize}px Arial`;
+
+const availableTextWidth =
+    Math.max(
+        120,
+        Math.round(width * 0.62)
+    );
+
+function wrapTextLines(
+    text,
+    maxWidth
+) {
+    if (!text) return [];
+
+    const words =
+        String(text)
+            .split(/\s+/);
+
+    const lines = [];
+    let currentLine = '';
+
+    words.forEach(
+        word => {
+            const testLine =
+                currentLine
+                    ? `${currentLine} ${word}`
+                    : word;
+
+            const testWidth =
+                context.measureText(
+                    testLine
+                ).width;
+
+            if (
+                testWidth > maxWidth &&
+                currentLine
+            ) {
+                lines.push(
+                    currentLine
+                );
+
+                currentLine =
+                    word;
+            } else {
+                currentLine =
+                    testLine;
+            }
+        }
+    );
+
+    if (currentLine) {
+        lines.push(
+            currentLine
+        );
+    }
+
+    return lines;
+}
+
+const streetAddressLines =
     hasStreetAddress
-        ? 4
-        : 3;
+        ? wrapTextLines(
+            stampData.streetAddress,
+            availableTextWidth
+        )
+        : [];
+
+const textLineCount =
+    3 +
+    streetAddressLines.length;
 
 const panelHeight =
-    (lineHeight * textLineCount) +
-    (padding * 2);
+    Math.max(
+        (lineHeight * textLineCount) +
+        (padding * 2),
+        Math.round(
+            width * 0.15
+        )
+    );
 
-    const panelY =
-        height - panelHeight;
+const panelY =
+    height - panelHeight;
 
     context.fillStyle =
         'rgba(0, 0, 0, 0.70)';
@@ -672,15 +744,21 @@ if (stampData.locationText) {
     textY += lineHeight;
 }
 
-if (stampData.streetAddress) {
+if (streetAddressLines.length) {
 
-    context.fillText(
-        stampData.streetAddress,
-        textX,
-        textY
+    streetAddressLines.forEach(
+        line => {
+
+            context.fillText(
+                line,
+                textX,
+                textY
+            );
+
+            textY +=
+                lineHeight;
+        }
     );
-
-    textY += lineHeight;
 }
 
 context.fillText(
