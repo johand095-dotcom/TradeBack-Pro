@@ -227,6 +227,7 @@ const ARRIVAL_PHOTO_TYPES = [
 ];
 
 let receivingState = { items: {}, arrivalPhotos: {} };
+let receivingCloudRecords = [];
 let receivingAppReady = false;
 let receivingSignatureHasInk = false;
 
@@ -247,6 +248,61 @@ function getReceivingDatabase() {
     console.error('Could not read receiving database:', error);
     return [];
   }
+}
+
+function getAllReceivingRecords() {
+
+    const localRecords =
+        getReceivingDatabase();
+
+    const mergedMap =
+        new Map();
+
+    receivingCloudRecords.forEach(
+        record => {
+            mergedMap.set(
+                record.receivingNo,
+                record
+            );
+        }
+    );
+
+    localRecords.forEach(
+        record => {
+
+            const cloudRecord =
+                mergedMap.get(
+                    record.receivingNo
+                );
+
+            if (
+                !cloudRecord ||
+                new Date(
+                    record.updatedAt || 0
+                ) >=
+                new Date(
+                    cloudRecord.updatedAt || 0
+                )
+            ) {
+                mergedMap.set(
+                    record.receivingNo,
+                    record
+                );
+            }
+        }
+    );
+
+    return Array.from(
+        mergedMap.values()
+    ).sort(
+        (a, b) =>
+            new Date(
+                b.updatedAt || 0
+            ) -
+            new Date(
+                a.updatedAt || 0
+            )
+    );
 }
 
 function saveReceivingDatabase(records) {
@@ -428,33 +484,18 @@ async function syncReceivingDatabaseFromSupabase() {
             }
         );
 
-        const mergedRecords =
-            Array.from(
-                mergedMap.values()
-            )
-                .sort(
-                    (a, b) =>
-                        new Date(
-                            b.updatedAt || 0
-                        ) -
-                        new Date(
-                            a.updatedAt || 0
-                        )
-                );
+       receivingCloudRecords =
+    cloudRecords;
 
-        saveReceivingDatabase(
-            mergedRecords
-        );
+renderReceivingLibrary();
+updateReceivingDashboard();
 
-        renderReceivingLibrary();
-        updateReceivingDashboard();
+console.log(
+    'Receiving records loaded from Supabase:',
+    receivingCloudRecords.length
+);
 
-        console.log(
-            'Receiving records synced from Supabase:',
-            mergedRecords.length
-        );
-
-        return true;
+return true;
 
     } catch (error) {
 
@@ -1963,7 +2004,7 @@ function loadLatestReceivingDraft() {
 }
 
 function openReceiving(receivingNo) {
-  const record = getReceivingDatabase().find(r => r.receivingNo === receivingNo);
+ const record = getAllReceivingRecords()(r => r.receivingNo === receivingNo);
   if (!record) return alert('Receiving record not found.');
   loadReceivingRecord(record);
 }
@@ -2047,7 +2088,7 @@ function renderReceivingLibrary() {
   const body = document.getElementById('receivingLibraryBody');
   const search = receivingField('receivingLibrarySearch').trim().toLowerCase();
   const filter = receivingField('receivingLibraryStatus') || 'all';
-  const records = getReceivingDatabase().filter(record => {
+ const records = getAllReceivingRecords().filter(record => {
     const f = record.fields || {};
     const haystack = [record.receivingNo,f.stockNumber,f.receivingVin,f.receivingMake,f.receivingModel].join(' ').toLowerCase();
     return (!search || haystack.includes(search)) && (filter === 'all' || (record.status || '').toLowerCase() === filter);
@@ -2063,7 +2104,7 @@ function renderReceivingLibrary() {
 }
 
 function updateReceivingDashboard() {
-  const records=getReceivingDatabase();
+  const records = getAllReceivingRecords();
   document.getElementById('receivingTotalCount').innerText=records.length;
   document.getElementById('receivingDamageCount').innerText=records.filter(r => r.result === 'Accepted with Damage' || r.result === 'Rejected').length;
   document.getElementById('receivingCompletedCount').innerText=records.filter(r => r.status === 'Completed').length;
