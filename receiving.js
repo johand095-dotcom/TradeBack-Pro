@@ -128,7 +128,11 @@ async function signInReceivingUser() {
   if (!receivingAppReady) {
     initReceiving();
   }
+
+  await syncReceivingDatabaseFromSupabase();
 }
+
+
 
 async function signOutReceivingUser() {
   await supabaseClient.auth.signOut();
@@ -155,12 +159,15 @@ async function initReceivingCloudAccess() {
 
   receivingSession = session;
 
-  if (session) {
+ if (session) {
     hideReceivingLogin();
     initReceiving();
-  } else {
+
+    await syncReceivingDatabaseFromSupabase();
+
+} else {
     showReceivingLogin();
-  }
+}
 
   supabaseClient.auth.onAuthStateChange(
     (event, nextSession) => {
