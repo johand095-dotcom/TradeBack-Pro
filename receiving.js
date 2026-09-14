@@ -2016,11 +2016,91 @@ function openReceiving(receivingNo) {
   loadReceivingRecord(record);
 }
 
-function deleteReceiving(receivingNo) {
-  if (!confirm(`Delete receiving ${receivingNo}? This cannot be undone.`)) return;
-  saveReceivingDatabase(getReceivingDatabase().filter(r => r.receivingNo !== receivingNo));
-  renderReceivingLibrary();
-  updateReceivingDashboard();
+async function deleteReceiving(receivingNo) {
+
+    if (
+        !confirm(
+            `Delete receiving ${receivingNo}? This cannot be undone.`
+        )
+    ) {
+        return;
+    }
+
+    try {
+
+        // Delete from Supabase first
+        const { error } =
+            await supabaseClient
+                .from('receivings')
+                .delete()
+                .eq(
+                    'receiving_no',
+                    receivingNo
+                );
+
+        if (error) {
+            throw error;
+        }
+
+        // Remove any local copy on this device
+        const localRecords =
+            getReceivingDatabase()
+                .filter(
+                    record =>
+                        record.receivingNo !== receivingNo
+                );
+
+        saveReceivingDatabase(
+            localRecords
+        );
+
+        // Remove from the in-memory cloud list
+        receivingCloudRecords =
+            receivingCloudRecords
+                .filter(
+                    record =>
+                        record.receivingNo !== receivingNo
+                );
+
+        // Remove active/draft references if applicable
+        if (
+            localStorage.getItem(
+                RECEIVING_DRAFT_KEY
+            ) === receivingNo
+        ) {
+            localStorage.removeItem(
+                RECEIVING_DRAFT_KEY
+            );
+        }
+
+        if (
+            localStorage.getItem(
+                RECEIVING_ACTIVE_KEY
+            ) === receivingNo
+        ) {
+            localStorage.removeItem(
+                RECEIVING_ACTIVE_KEY
+            );
+        }
+
+        renderReceivingLibrary();
+        updateReceivingDashboard();
+
+        alert(
+            `Receiving ${receivingNo} deleted successfully.`
+        );
+
+    } catch (error) {
+
+        console.error(
+            'Could not delete receiving:',
+            error
+        );
+
+        alert(
+            'The receiving record could not be deleted from the cloud.'
+        );
+    }
 }
 
 function newReceiving() {
