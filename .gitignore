@@ -1,0 +1,6 @@
+# Local backup files - do not publish
+pdi backup.js
+
+# Other common backup files
+*.bak
+*.backup
