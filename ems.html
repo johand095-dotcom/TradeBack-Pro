@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        ELT Vehicle Suite | EMS Operations
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="ems.css"
+    >
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+    <!-- =====================================================
+         EMS MODULE
+         ELT VEHICLE SUITE
+         ===================================================== -->
+
+    <div class="ems-app">
+
+        <!-- =====================================================
+     VEHICLE SUITE SIDEBAR
+===================================================== -->
+
+<aside class="ems-sidebar">
+
+    <div class="ems-sidebar-brand">
+
+        <div class="ems-sidebar-logo">
+            ELT
+        </div>
+
+        <div>
+            <h2>Vehicle Suite</h2>
+            <p>EMS Operations</p>
+        </div>
+
+    </div>
+
+    <nav class="side-nav">
+
+  <!-- =========================================
+       VEHICLE SUITE MODULE NAVIGATION
+  ========================================== -->
+
+  <a href="pdi.html">
+    🏠 PDI Operations
+    <span class="nav-status">→</span>
+  </a>
+
+  <a href="ems.html" class="active">
+    🔧 EMS Operations
+    <span class="nav-status">✓</span>
+  </a>
+
+  <a href="receiving.html">
+    📦 Vehicle Receiving
+    <span class="nav-status">→</span>
+  </a>
+
+  <a href="index.html">
+    🚚 Tradeback Inspection
+    <span class="nav-status">→</span>
+  </a>
+
+  <!-- =========================================
+       EMS MODULE NAVIGATION
+  ========================================== -->
+
+  <div class="nav-section-label">
+    EMS
+  </div>
+
+ <a href="#emsDashboard">
+    🔧 EMS Dashboard
+    <span class="nav-status">✓</span>
+</a>
+
+  <a href="#vehiclesInProgress">
+    🚛 Vehicles In Progress
+    <span class="nav-status">○</span>
+  </a>
+
+  <a href="#emsWorkflow">
+    📋 Vehicle Workflow
+    <span class="nav-status">○</span>
+  </a>
+
+</nav>
+
+    <div class="ems-sidebar-footer">
+        <strong>ELT Group (PTY) Ltd</strong>
+        <span>Vehicle Suite – EMS v1.0</span>
+    </div>
+
+</aside>
+
+        <!-- HEADER -->
+
+        <header class="ems-header">
+
+            <div class="ems-brand">
+
+                <div class="ems-logo">
+                    ELT
+                </div>
+
+                <div>
+                    <h1>EMS Operations</h1>
+
+                    <p>
+                        ELT Vehicle Suite
+                    </p>
+                </div>
+
+            </div>
+
+            <div class="ems-user-area">
+
+                <span id="signedInUser">
+                    Checking user...
+                </span>
+
+                <button
+                    id="emsLogoutButton"
+                    class="secondary-button"
+                    type="button"
+                >
+                    Sign Out
+                </button>
+
+            </div>
+
+        </header>
+
+
+        <!-- LOGIN MESSAGE -->
+
+        <div
+            id="emsLoginMessage"
+            class="login-message hidden"
+        ></div>
+
+
+        <!-- MAIN APPLICATION -->
+
+        <main
+            id="emsApplication"
+            class="ems-main
+        >
+
+            <!-- =================================================
+                 PAGE TITLE / ACTIONS
+                 ================================================= -->
+
+            <section class="page-heading">
+
+                <div>
+
+                    <span class="eyebrow">
+                        EMS CONTROL & MONITORING
+                    </span>
+
+                    <h2>
+                        EMS Vehicle Dashboard
+                    </h2>
+
+                    <p>
+                        Monitor all active EMS vehicles from
+                        booking through collection.
+                    </p>
+
+                </div>
+
+                <div class="page-actions">
+
+                    <button
+                        id="refreshEmsButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        Refresh
+                    </button>
+
+                    <button
+                        id="downloadEmsReportButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        Download Report
+                    </button>
+
+                    <button
+                        id="newEmsBookingButton"
+                        class="primary-button"
+                        type="button"
+                    >
+                        + New EMS Booking
+                    </button>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 SUMMARY DASHBOARD
+                 ================================================= -->
+
+            <section class="summary-grid">
+
+                <article class="summary-card">
+
+                    <span>
+                        Vehicles In Progress
+                    </span>
+
+                    <strong id="emsActiveCount">
+                        0
+                    </strong>
+
+                </article>
+
+
+                <article class="summary-card">
+
+                    <span>
+                        Phase 1
+                    </span>
+
+                    <strong id="emsPhase1Count">
+                        0
+                    </strong>
+
+                </article>
+
+
+                <article class="summary-card">
+
+                    <span>
+                        Phase 2
+                    </span>
+
+                    <strong id="emsPhase2Count">
+                        0
+                    </strong>
+
+                </article>
+
+
+                <article class="summary-card">
+
+                    <span>
+                        Phase 3
+                    </span>
+
+                    <strong id="emsPhase3Count">
+                        0
+                    </strong>
+
+                </article>
+
+
+                <article class="summary-card">
+
+                    <span>
+                        Phase 4
+                    </span>
+
+                    <strong id="emsPhase4Count">
+                        0
+                    </strong>
+
+                </article>
+
+            </section>
+
+
+            <!-- =================================================
+                 ACTIVE VEHICLE DASHBOARD
+                 ================================================= -->
+
+            <section class="panel">
+
+                <div class="panel-heading">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            LIVE WORK IN PROGRESS
+                        </span>
+
+                        <h3>
+                            Vehicles In Progress
+                        </h3>
+
+                    </div>
+
+                    <div class="dashboard-search">
+
+                        <input
+                            id="emsSearchInput"
+                            type="search"
+                            placeholder="Search VIN, registration, job card..."
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <div class="table-wrapper">
+
+                    <table class="ems-table">
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    Registration
+                                </th>
+
+                                <th>
+                                    VIN
+                                </th>
+
+                                <th>
+                                    Job Card
+                                </th>
+
+                                <th>
+                                    Booking
+                                </th>
+
+                                <th>
+                                    Current Phase
+                                </th>
+
+                                <th>
+                                    Current Status
+                                </th>
+
+                                <th>
+                                    Days In Progress
+                                </th>
+
+                                <th>
+                                    Action
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="emsDashboardBody">
+
+                            <tr>
+
+                                <td
+                                    colspan="8"
+                                    class="empty-table"
+                                >
+                                    Loading EMS vehicles...
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 NEW EMS BOOKING
+                 ================================================= -->
+
+            <section
+                id="newEmsBookingSection"
+                class="panel hidden"
+            >
+
+                <div class="panel-heading">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            NEW VEHICLE
+                        </span>
+
+                        <h3>
+                            Create EMS Booking
+                        </h3>
+
+                    </div>
+
+                    <button
+                        id="closeEmsBookingButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        Cancel
+                    </button>
+
+                </div>
+
+
+                <form id="emsBookingForm">
+
+                    <div class="form-grid">
+
+
+                        <div class="form-field">
+
+                            <label for="emsVin">
+                                VIN Number *
+                            </label>
+
+                            <input
+                                id="emsVin"
+                                type="text"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label for="emsEngineNumber">
+                                Engine Number *
+                            </label>
+
+                            <input
+                                id="emsEngineNumber"
+                                type="text"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label for="emsRegistration">
+                                Registration Number *
+                            </label>
+
+                            <input
+                                id="emsRegistration"
+                                type="text"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label for="emsMileage">
+                                Mileage *
+                            </label>
+
+                            <input
+                                id="emsMileage"
+                                type="number"
+                                min="0"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label for="emsBookingDate">
+                                Booking Date *
+                            </label>
+
+                            <input
+                                id="emsBookingDate"
+                                type="date"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label for="emsBookingReference">
+                                Booking Reference
+                            </label>
+
+                            <input
+                                id="emsBookingReference"
+                                type="text"
+                            >
+
+                        </div>
+
+
+                        <div class="form-field form-field-wide">
+
+                            <label for="emsBookingDetails">
+                                Booking Details *
+                            </label>
+
+                            <textarea
+                                id="emsBookingDetails"
+                                rows="4"
+                                required
+                                placeholder="Enter the reason for booking, reported faults or work requested..."
+                            ></textarea>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-actions">
+
+                        <button
+                            id="saveEmsBookingButton"
+                            class="primary-button"
+                            type="submit"
+                        >
+                            Create EMS Booking
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </section>
+
+
+            <!-- =================================================
+                 VEHICLE WORKFLOW
+                 Built in next stage
+                 ================================================= -->
+
+            <section
+                id="emsWorkflowSection"
+                class="panel hidden"
+            >
+
+                <div class="panel-heading">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            VEHICLE WORKFLOW
+                        </span>
+
+                        <h3 id="emsWorkflowVehicleTitle">
+                            EMS Vehicle
+                        </h3>
+
+                    </div>
+
+                    <button
+                        id="closeEmsWorkflowButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        Back to Dashboard
+                    </button>
+
+                </div>
+
+
+                <div id="emsWorkflowContent">
+
+                    <!--
+                    Four-phase EMS workflow will render here.
+                    -->
+
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+
+    <script src="ems.js"></script>
+
+</body>
+</html>

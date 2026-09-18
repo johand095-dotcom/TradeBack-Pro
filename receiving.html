@@ -17,15 +17,79 @@
           <p>Inspection & Receiving</p>
         </div>
       </div>
-      <nav class="side-nav">
-        <a href="index.html">🚛 Tradeback Inspection <span class="nav-status">→</span></a>
-        <a href="#receivingDashboard">🏠 Receiving Dashboard <span class="nav-status">✓</span></a>
-        <a href="#receivingDetails">📦 Vehicle Details <span class="nav-status" id="navReceivingDetails">○</span></a>
-        <a href="#receivingChecklistSection">📋 Visual Check <span class="nav-status" id="navReceivingChecklist">○</span></a>
-        <a href="#receivingSummarySection">📝 Summary <span class="nav-status" id="navReceivingSummary">○</span></a>
-        <a href="#receivingSignatureSection">✍ Signature <span class="nav-status" id="navReceivingSignature">○</span></a>
-        <a href="#receivingLibrary">📁 Saved Receivings <span class="nav-status">○</span></a>
-      </nav>
+     <nav class="side-nav">
+
+  <!-- VEHICLE SUITE MODULES -->
+
+  <a href="pdi.html">
+    🏠 PDI Operations
+    <span class="nav-status">→</span>
+  </a>
+
+  <a href="ems.html">
+    🔧 EMS Operations
+    <span class="nav-status">→</span>
+  </a>
+
+  <a href="receiving.html" class="active">
+    📦 Vehicle Receiving
+    <span class="nav-status">✓</span>
+  </a>
+
+  <a href="index.html">
+    🚚 Tradeback Inspection
+    <span class="nav-status">→</span>
+  </a>
+
+  <div class="nav-section-label">
+    RECEIVING
+  </div>
+
+  <!-- RECEIVING MODULE -->
+
+  <a href="#receivingDashboard">
+    🏠 Receiving Dashboard
+    <span class="nav-status">○</span>
+  </a>
+
+  <a href="#receivingDetails">
+    📦 Vehicle Details
+    <span
+      class="nav-status"
+      id="navReceivingDetails"
+    >○</span>
+  </a>
+
+  <a href="#receivingChecklistSection">
+    📋 Visual Check
+    <span
+      class="nav-status"
+      id="navReceivingChecklist"
+    >○</span>
+  </a>
+
+  <a href="#receivingSummarySection">
+    📝 Summary
+    <span
+      class="nav-status"
+      id="navReceivingSummary"
+    >○</span>
+  </a>
+
+  <a href="#receivingSignatureSection">
+    ✍ Signature
+    <span
+      class="nav-status"
+      id="navReceivingSignature"
+    >○</span>
+  </a>
+
+  <a href="#receivingLibrary">
+    📁 Saved Receivings
+    <span class="nav-status">○</span>
+  </a>
+
+</nav>
       <div class="sidebar-footer">
         <strong>ELT Group (PTY) Ltd</strong>
         <span>Receiving Module v1.0</span>
@@ -159,10 +223,7 @@
       <section id="receivingReport" class="report"></section>
     </main>
   </div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="receiving.js?v=20260903-1"></script>
-</body>
-</html>
+
 <div
   id="receivingLoginScreen"
   style="
@@ -286,3 +347,9 @@
     ></p>
   </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="receiving.js?v=20260918-1"></script>
+
+</body>
+</html>

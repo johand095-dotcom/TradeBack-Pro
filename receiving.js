@@ -12,10 +12,11 @@ const MAX_CHECKLIST_PHOTOS_PER_ITEM = 3;
 const SUPABASE_URL = 'https://upkmtznkhfbwadofaxno.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_Al-SumF_BuGOzzwpIX_yBw_LwGJUYet';
 
-const supabaseClient = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY
-);
+const supabaseClient =
+    window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+    );
 /* ========= AUTHENTICATION ========= */
 
 let receivingSession = null;
