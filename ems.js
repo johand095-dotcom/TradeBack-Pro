@@ -249,93 +249,132 @@ if (signOutButton) {
    INITIALISE EMS MODULE
 ========================================================= */
 
-async function initialiseEmsModule() {
+async function initialiseEmsModule() {}
+
+/* =========================================================
+   EMS BOOKING PANEL
+========================================================= */
+
+function openEmsBookingPanel() {
+    const panel = document.getElementById('emsBookingPanel');
+
+    if (!panel) {
+        console.error('EMS booking panel not found.');
+        return;
+    }
+
+    panel.classList.remove('hidden');
+
+    const bookingDate = document.getElementById('emsBookingDate');
+
+    if (bookingDate && !bookingDate.value) {
+        const today = new Date();
+        const localDate = [
+            today.getFullYear(),
+            String(today.getMonth() + 1).padStart(2, '0'),
+            String(today.getDate()).padStart(2, '0')
+        ].join('-');
+
+        bookingDate.value = localDate;
+    }
+
+    panel.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+    });
+}
+
+
+function closeEmsBookingPanel() {
+    const panel = document.getElementById('emsBookingPanel');
+
+    if (!panel) return;
+
+    panel.classList.add('hidden');
+}
+
+
+/* ---------------------------------------------------------
+   BOOKING PANEL BUTTON EVENTS
+--------------------------------------------------------- */
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    const newBookingButton =
+        document.getElementById('newEmsBookingButton');
+
+    const closeBookingButton =
+        document.getElementById('closeEmsBookingButton');
+
+    const cancelBookingButton =
+        document.getElementById('cancelEmsBookingButton');
+
+
+    if (newBookingButton) {
+        newBookingButton.addEventListener(
+            'click',
+            openEmsBookingPanel
+        );
+    }
+
+
+    if (closeBookingButton) {
+        closeBookingButton.addEventListener(
+            'click',
+            closeEmsBookingPanel
+        );
+    }
+
+
+    if (cancelBookingButton) {
+        cancelBookingButton.addEventListener(
+            'click',
+            closeEmsBookingPanel
+        );
+    }
+    });
+/* ---------------------------------------------------------
+   EMS SIGNED-IN USER DISPLAY
+--------------------------------------------------------- */
+
+async function loadEmsSignedInUser() {
+    const signedInUser = document.getElementById('signedInUser');
+
+    if (!signedInUser) return;
 
     try {
-
-        console.log(
-            'Starting EMS Operations Module...'
-        );
-
-        hideEmsApplication();
-
-        setEmsLoginMessage(
-            'Checking user...'
-        );
-
-        const {
-            data: { session },
-            error
-        } =
-            await supabaseClient.auth
-                .getSession();
+        const { data, error } = await supabaseClient.auth.getSession();
 
         if (error) {
-
-            console.error(
-                'Could not read EMS session:',
-                error
-            );
-
-            setEmsLoginMessage(
-                'Unable to verify signed-in user.',
-                true
-            );
-
+            console.error('EMS session error:', error);
+            signedInUser.textContent = 'User';
             return;
         }
 
-        emsSession =
-            session;
+        const user = data?.session?.user;
 
-            console.log('EMS SESSION DEBUG:', session);
-
-        if (session) {
-
-            await loadEmsUserProfile();
+        if (!user) {
+            signedInUser.textContent = 'Not signed in';
+            return;
         }
-        
-        console.log('EMS PROFILE DEBUG:', emsUserProfile);
 
-        updateEmsSignedInUser();
+        const fullName =
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            user.email?.split('@')[0] ||
+            'User';
 
-        if (session && emsUserProfile) {
+        const role =
+            user.user_metadata?.role ||
+            user.app_metadata?.role ||
+            'Administrator';
 
-            showEmsApplication();
-
-            console.log(
-                'Existing EMS session restored:',
-                session.user.email
-            );
-
-        } else {
-
-            console.warn(
-                'No existing EMS session found.'
-            );
-
-            setEmsLoginMessage(
-                'Please sign in through the ELT Vehicle Suite to access EMS Operations.',
-                true
-            );
-        }
+        signedInUser.textContent = `${fullName} · ${role}`;
 
     } catch (error) {
-
-        console.error(
-            'EMS authentication startup failed:',
-            error
-        );
-
-        setEmsLoginMessage(
-            'EMS authentication could not be started.',
-            true
-        );
+        console.error('EMS user display error:', error);
+        signedInUser.textContent = 'User';
     }
 }
 
-/* =========================================================
-   START APPLICATION
-========================================================= */
-
-initialiseEmsModule();
+document.addEventListener('DOMContentLoaded', loadEmsSignedInUser);

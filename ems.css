@@ -889,3 +889,211 @@ button {
   background: rgba(255, 255, 255, 0.22);
   border-radius: 10px;
 }
+/* =========================================================
+   EMS BOOKING PANEL
+   ========================================================= */
+
+.ems-booking-panel {
+    padding: 28px 32px 40px;
+}
+
+.ems-booking-panel.hidden {
+    display: none;
+}
+
+.ems-booking-card {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px;
+    background: #ffffff;
+    border: 1px solid #d7e0ea;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0, 47, 95, 0.08);
+}
+
+
+/* =========================================================
+   BOOKING HEADER
+   ========================================================= */
+
+.ems-booking-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    padding-bottom: 22px;
+    margin-bottom: 26px;
+    border-bottom: 1px solid #e1e8ef;
+}
+
+.ems-booking-header .eyebrow {
+    display: block;
+    margin-bottom: 6px;
+    color: #00558c;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.ems-booking-header h2 {
+    margin: 0 0 7px;
+    color: #002f5f;
+    font-size: 28px;
+    font-weight: 800;
+}
+
+.ems-booking-header p {
+    margin: 0;
+    color: #617286;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+
+/* =========================================================
+   FORM GRID
+   ========================================================= */
+
+.ems-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 24px;
+}
+
+.ems-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.ems-form-field label {
+    color: #102a43;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+
+/* =========================================================
+   INPUTS
+   ========================================================= */
+
+.ems-form-field input,
+.ems-form-field select,
+.ems-form-field textarea {
+    width: 100%;
+    min-height: 48px;
+    padding: 11px 13px;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    background: #ffffff;
+    color: #102a43;
+    font-family: inherit;
+    font-size: 15px;
+    outline: none;
+    box-sizing: border-box;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.ems-form-field input:focus,
+.ems-form-field select:focus,
+.ems-form-field textarea:focus {
+    border-color: #00558c;
+    box-shadow: 0 0 0 3px rgba(0, 85, 140, 0.12);
+}
+
+.ems-form-field textarea {
+    min-height: 110px;
+    resize: vertical;
+}
+
+
+/* =========================================================
+   FULL WIDTH FIELDS
+   Works if the HTML already contains .full-width
+   ========================================================= */
+
+.ems-form-field.full-width {
+    grid-column: 1 / -1;
+}
+
+
+/* =========================================================
+   FORM ACTIONS
+   ========================================================= */
+
+.ems-form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 22px;
+    border-top: 1px solid #e1e8ef;
+}
+
+.ems-form-actions button,
+.ems-booking-header button {
+    min-height: 46px;
+    padding: 0 22px;
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.ems-form-actions .primary-button {
+    border: 1px solid #00447c;
+    background: #00447c;
+    color: #ffffff;
+}
+
+.ems-form-actions .primary-button:hover {
+    background: #00355f;
+    border-color: #00355f;
+}
+
+.ems-form-actions .secondary-button,
+.ems-booking-header .secondary-button {
+    border: 1px solid #ccd6e0;
+    background: #ffffff;
+    color: #003b6f;
+}
+
+.ems-form-actions .secondary-button:hover,
+.ems-booking-header .secondary-button:hover {
+    background: #f3f7fb;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+    .ems-booking-panel {
+        padding: 18px;
+    }
+
+    .ems-booking-card {
+        padding: 22px;
+    }
+
+    .ems-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ems-form-field.full-width,
+    .ems-form-actions {
+        grid-column: auto;
+    }
+
+    .ems-booking-header {
+        flex-direction: column;
+    }
+}

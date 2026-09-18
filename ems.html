@@ -212,6 +212,190 @@
 
             </section>
 
+<!-- =====================================================
+     NEW EMS BOOKING PANEL
+===================================================== -->
+
+<section id="emsBookingPanel" class="ems-booking-panel hidden">
+
+    <div class="ems-booking-card">
+
+        <div class="ems-booking-header">
+            <div>
+                <span class="eyebrow">NEW EMS BOOKING</span>
+                <h2>Create EMS Booking</h2>
+                <p>
+                    Create a new EMS vehicle record and add it to the
+                    operational workflow.
+                </p>
+            </div>
+
+            <button
+                id="closeEmsBookingButton"
+                class="secondary-button"
+                type="button"
+            >
+                Cancel
+            </button>
+        </div>
+
+        <form id="emsBookingForm">
+
+            <div class="ems-form-grid">
+
+                <div class="ems-form-field">
+                    <label for="emsRegistration">Registration Number</label>
+                    <input
+                        id="emsRegistration"
+                        name="registration"
+                        type="text"
+                        placeholder="Enter registration"
+                    >
+                </div>
+
+                <div class="ems-form-field">
+                    <label for="emsVin">VIN *</label>
+                    <input
+                        id="emsVin"
+                        name="vin"
+                        type="text"
+                        placeholder="Enter vehicle VIN"
+                        required
+                    >
+                </div>
+
+                <div class="ems-form-field">
+                    <label for="emsVehicleMake">Vehicle Make *</label>
+                    <input
+                        id="emsVehicleMake"
+                        name="vehicleMake"
+                        type="text"
+                        placeholder="e.g. FAW"
+                        required
+                    >
+                </div>
+
+                <div class="ems-form-field">
+                    <label for="emsVehicleModel">Vehicle Model *</label>
+                    <input
+                        id="emsVehicleModel"
+                        name="vehicleModel"
+                        type="text"
+                        placeholder="e.g. JH6 28.500FT"
+                        required
+                    >
+                </div>
+
+                <div class="ems-form-field">
+                    <label for="emsCustomer">Customer / Company *</label>
+                    <input
+                        id="emsCustomer"
+                        name="customer"
+                        type="text"
+                        placeholder="Enter customer name"
+                        required
+                    >
+                </div>
+
+                <div class="ems-form-field">
+                    <label for="emsContactPerson">Contact Person</label>
+                    <input
+                        id="emsContactPerson"
+                        name="contactPerson"
+                        type="text"
+                        placeholder="Enter contact person"
+                    >
+                </div>
+
+                <div class="ems-form-field">
+                    <label for="emsContactNumber">Contact Number</label>
+                    <input
+                        id="emsContactNumber"
+                        name="contactNumber"
+                        type="tel"
+                        placeholder="Enter contact number"
+                    >
+                </div>
+
+                <div class="ems-form-field">
+                    <label for="emsJobCard">Job Card / Reference</label>
+                    <input
+                        id="emsJobCard"
+                        name="jobCard"
+                        type="text"
+                        placeholder="Enter job card or reference"
+                    >
+                </div>
+
+                <div class="ems-form-field">
+                    <label for="emsBookingDate">Booking Date *</label>
+                    <input
+                        id="emsBookingDate"
+                        name="bookingDate"
+                        type="date"
+                        required
+                    >
+                </div>
+
+                <div class="ems-form-field">
+                    <label for="emsExpectedArrival">Expected Arrival</label>
+                    <input
+                        id="emsExpectedArrival"
+                        name="expectedArrival"
+                        type="datetime-local"
+                    >
+                </div>
+
+                <div class="ems-form-field ems-form-field-full">
+                    <label for="emsWorkDescription">
+                        EMS Work / Fitment Description *
+                    </label>
+                    <textarea
+                        id="emsWorkDescription"
+                        name="workDescription"
+                        rows="4"
+                        placeholder="Describe the EMS work or fitments required"
+                        required
+                    ></textarea>
+                </div>
+
+                <div class="ems-form-field ems-form-field-full">
+                    <label for="emsBookingNotes">Notes / Instructions</label>
+                    <textarea
+                        id="emsBookingNotes"
+                        name="notes"
+                        rows="3"
+                        placeholder="Additional instructions or information"
+                    ></textarea>
+                </div>
+
+            </div>
+
+            <div class="ems-booking-actions">
+
+                <button
+                    id="cancelEmsBookingButton"
+                    class="secondary-button"
+                    type="button"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    id="createEmsBookingButton"
+                    class="primary-button"
+                    type="submit"
+                >
+                    Create EMS Booking
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</section>
 
             <!-- =================================================
                  SUMMARY DASHBOARD
