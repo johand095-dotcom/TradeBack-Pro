@@ -811,6 +811,7 @@ order_status,
 order_reference,
 oem_eta,
 stock_classification,
+allocated_customer,
 ordered_at,
 received_at,
         workflow_status,
@@ -1099,7 +1100,10 @@ if (!canLoadPreArrival) {
                         'preArrivalClassification'
                     )
                     ?.value;
-
+const allocatedCustomer =
+    document
+        .getElementById('preArrivalCustomer')
+        ?.value.trim() || '';
           
 
             const message =
@@ -1122,6 +1126,15 @@ if (!canLoadPreArrival) {
                 return;
             }
 
+              if (classification === 'Allocated' && !allocatedCustomer) {
+    alert('Please enter the Customer Name for this allocated vehicle.');
+
+    document
+        .getElementById('preArrivalCustomer')
+        ?.focus();
+
+    return;
+}
             saveButton.disabled = true;
             saveButton.textContent =
                 'Saving Order...';
@@ -1179,11 +1192,16 @@ if (!canLoadPreArrival) {
                             oem_eta:
                                 eta,
 
-                            stock_classification:
-                                classification,
+                           stock_classification:
+    classification,
 
-                            ordered_at:
-                                now
+allocated_customer:
+    classification === 'Allocated'
+        ? allocatedCustomer
+        : null,
+
+ordered_at:
+    now 
                         })
                         .select()
                         .single();
@@ -1500,7 +1518,15 @@ function renderAwaitingArrivalTable() {
         awaitingArrival
             .map(
                 item => {
-
+console.log(
+    'DASHBOARD ROW:',
+    item.vin,
+    'classification:',
+    item.stock_classification,
+    'customer:',
+    item.allocated_customer,
+    item
+);
                     const classification =
                         item.stock_classification ||
                         '-';
@@ -1612,15 +1638,28 @@ function renderAwaitingArrivalTable() {
                             </td>
 
                             <td>
-    ${
-        classification === 'Sold'
-            ? '<span class="pdi-badge pdi-badge-sold">Sold</span>'
-            : classification === 'Allocated'
-                ? '<span class="pdi-badge pdi-badge-priority-medium">Allocated</span>'
-                : classification === 'Stock'
-                    ? '<span class="pdi-badge pdi-badge-stock">Stock</span>'
-                    : '-'
-    }
+${
+    classification === 'Sold'
+        ? `<span class="pdi-badge pdi-badge-sold">Sold</span>`
+        : classification === 'Allocated'
+            ? `
+                <div>
+                    <span class="pdi-badge pdi-badge-priority-medium">
+                        Allocated
+                    </span>
+                    ${
+                        item.allocated_customer
+                            ? `<div style="margin-top:6px; font-size:12px; font-weight:600;">
+                                Customer: ${item.allocated_customer}
+                               </div>`
+                            : ''
+                    }
+                </div>
+              `
+            : classification === 'Stock'
+                ? `<span class="pdi-badge pdi-badge-stock">Stock</span>`
+                : '-'
+}
 </td>
 
                             <td>
@@ -1655,11 +1694,10 @@ function renderAwaitingArrivalTable() {
 
     </div>
 </td>              
-                        </tr>
-                    `;
-                }
-            )
-            .join('');
+          </tr>
+`;
+})
+.join('');        
 
 document
     .querySelectorAll(
@@ -1978,16 +2016,34 @@ document
                     return;
                 }
 
-                if (
-                    newClassification ===
-                    currentClassification
-                ) {
-                    alert(
-                        `The vehicle is already classified as ${newClassification}.`
-                    );
-                    return;
-                }
+               if (
+    newClassification === currentClassification &&
+    newClassification !== 'Allocated'
+) {
+    alert(
+        `The vehicle is already classified as ${newClassification}.`
+    );
+    return;
+}
+let allocatedCustomer = selectedCase.allocated_customer || null;
+alert(`DEBUG: new classification = "${newClassification}"`);
+if (newClassification === 'Allocated') {
+    const enteredCustomer = prompt(
+        'Enter the customer name this vehicle is allocated to:',
+        allocatedCustomer || ''
+    );
 
+    if (enteredCustomer === null) {
+        return;
+    }
+
+    allocatedCustomer = enteredCustomer.trim();
+
+    if (!allocatedCustomer) {
+        alert('Customer Name is required when a vehicle is Allocated.');
+        return;
+    }
+}
                 try {
 
                     const {
@@ -1998,9 +2054,12 @@ document
                                 'pdi_cases'
                             )
                             .update({
-                                stock_classification:
-                                    newClassification
-                            })
+    stock_classification: newClassification,
+    allocated_customer:
+        newClassification === 'Allocated'
+            ? allocatedCustomer
+            : selectedCase.allocated_customer || null
+})
                             .eq(
                                 'id',
                                 selectedCase.id
@@ -2186,15 +2245,28 @@ const priority =
               <td>
                 ${item.vin || '-'}
               </td>
-             <td>
-    ${
-        classification === 'Sold'
-            ? '<span class="pdi-badge pdi-badge-sold">Sold</span>'
-            : classification === 'Allocated'
-                ? '<span class="pdi-badge pdi-badge-priority-medium">Allocated</span>'
-                : '<span class="pdi-badge pdi-badge-stock">Stock</span>'
-    }
-</td>
+         <td>
+${
+    classification === 'Sold'
+        ? `<span class="pdi-badge pdi-badge-sold">Sold</span>`
+        : classification === 'Allocated'
+            ? `
+                <div>
+                    <span class="pdi-badge pdi-badge-priority-medium">
+                        Allocated
+                    </span>
+                    ${
+                        item.allocated_customer
+                            ? `<div style="margin-top:6px; font-size:12px; font-weight:600;">
+                                ${item.allocated_customer}
+                               </div>`
+                            : ''
+                    }
+                </div>
+              `
+            : `<span class="pdi-badge pdi-badge-stock">Stock</span>`
+}
+</td>   
 
 <td>
     ${
@@ -2839,6 +2911,15 @@ initialiseBodybuilderPhase(
     document.getElementById(
         'workflowStockClassification'
     );
+    const allocatedCustomerRow =
+    document.getElementById(
+        'workflowAllocatedCustomerRow'
+    );
+
+const allocatedCustomerElement =
+    document.getElementById(
+        'workflowAllocatedCustomer'
+    );
 
 const changeClassificationBtn =
     document.getElementById(
@@ -2850,7 +2931,23 @@ if (classificationElement) {
         selectedCase.stock_classification ||
         'Stock';
 }
+if (
+    allocatedCustomerRow &&
+    allocatedCustomerElement
+) {
+    if (
+        selectedCase.stock_classification === 'Allocated' &&
+        selectedCase.allocated_customer
+    ) {
+        allocatedCustomerElement.textContent =
+            selectedCase.allocated_customer;
 
+        allocatedCustomerRow.style.display = 'block';
+    } else {
+        allocatedCustomerElement.textContent = '-';
+        allocatedCustomerRow.style.display = 'none';
+    }
+}
 if (changeClassificationBtn) {
 
     const canChangeClassification =
@@ -2893,11 +2990,36 @@ if (changeClassificationBtn) {
             document.getElementById(
                 'cancelClassificationButton'
             );
+  
+            const allocatedCustomerField =
+    document.getElementById(
+        'allocatedCustomerField'
+    );
+
+const allocatedCustomerInput =
+    document.getElementById(
+        'allocatedCustomerInput'
+    );
 
         const closeClassificationModalButton =
             document.getElementById(
                 'closeClassificationModalButton'
             );
+
+            const updateAllocatedCustomerField = () => {
+    if (classificationSelect.value === 'Allocated') {
+        allocatedCustomerField.classList.remove('hidden');
+
+        allocatedCustomerInput.value =
+            selectedCase.allocated_customer || '';
+    } else {
+        allocatedCustomerField.classList.add('hidden');
+        allocatedCustomerInput.value = '';
+    }
+};
+
+classificationSelect.onchange =
+    updateAllocatedCustomerField;
 
         if (
             !classificationModal ||
@@ -2952,17 +3074,31 @@ if (changeClassificationBtn) {
                 }
 
                 if (
-                    newClassification ===
-                    currentClassification
-                ) {
-                    alert(
-                        `This vehicle is already classified as ${newClassification}.`
-                    );
-                    return;
-                }
+    newClassification === currentClassification &&
+    newClassification !== 'Allocated'
+) {
+    alert(
+        `This vehicle is already classified as ${newClassification}.`
+    );
+    return;
+}
+let allocatedCustomer = null;
 
-                try {
+if (newClassification === 'Allocated') {
+    allocatedCustomer =
+        allocatedCustomerInput.value.trim();
 
+    if (!allocatedCustomer) {
+        alert(
+            'Please enter the Customer Name before saving an Allocated vehicle.'
+        );
+
+        allocatedCustomerInput.focus();
+        return;
+    }
+}
+
+try {
                     const {
                         error
                     } =
@@ -2971,9 +3107,12 @@ if (changeClassificationBtn) {
                                 'pdi_cases'
                             )
                             .update({
-                                stock_classification:
-                                    newClassification
-                            })
+    stock_classification: newClassification,
+    allocated_customer:
+        newClassification === 'Allocated'
+            ? allocatedCustomer
+            : null
+})
                             .eq(
                                 'id',
                                 selectedCase.id
@@ -2985,6 +3124,10 @@ if (changeClassificationBtn) {
 
                     selectedCase.stock_classification =
                         newClassification;
+                        selectedCase.allocated_customer =
+    newClassification === 'Allocated'
+        ? allocatedCustomer
+        : null;
 
                     classificationElement.textContent =
                         newClassification;
@@ -7510,6 +7653,11 @@ document
 
                             'Classification':
                                 classification,
+                            
+                            'Allocated Customer':
+    classification === 'Allocated'
+        ? (item.allocated_customer || '')
+        : '',
 
                             'Priority':
                                 priority,
@@ -7551,8 +7699,9 @@ document
                 { wch: 24 },
                 { wch: 24 },
                 { wch: 16 },
+                { wch: 24 },
                 { wch: 12 },
-                { wch: 14 },
+                { wch: 14 },   
                 { wch: 14 },
                 { wch: 18 },
                 { wch: 16 },
@@ -7696,3 +7845,35 @@ document
             );
         }
     );
+    /* =========================================================
+   PRE-ARRIVAL ALLOCATED CUSTOMER
+========================================================= */
+
+const preArrivalClassification =
+    document.getElementById('preArrivalClassification');
+
+const preArrivalCustomerField =
+    document.getElementById('preArrivalCustomerField');
+
+const preArrivalCustomer =
+    document.getElementById('preArrivalCustomer');
+
+if (preArrivalClassification && preArrivalCustomerField) {
+
+    preArrivalClassification.addEventListener('change', () => {
+
+        const isAllocated =
+            preArrivalClassification.value === 'Allocated';
+
+        if (isAllocated) {
+            preArrivalCustomerField.style.display = '';
+            preArrivalCustomer.required = true;
+        } else {
+            preArrivalCustomerField.style.display = 'none';
+            preArrivalCustomer.required = false;
+            preArrivalCustomer.value = '';
+        }
+
+    });
+
+}

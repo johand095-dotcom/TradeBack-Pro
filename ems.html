@@ -568,6 +568,239 @@
 
             </section>
 
+            <!-- ============================================================
+     EMS VEHICLE WORKFLOW
+============================================================ -->
+
+<section
+    id="emsWorkflowSection"
+    class="panel hidden"
+>
+    <div class="panel-heading">
+
+        <div>
+            <span class="eyebrow">
+                EMS VEHICLE WORKFLOW
+            </span>
+
+            <h3 id="emsWorkflowTitle">
+                Vehicle Workflow
+            </h3>
+
+            <p id="emsWorkflowNumber">
+                EMS Case
+            </p>
+        </div>
+
+        <button
+            id="closeEmsWorkflowButton"
+            class="secondary-button"
+            type="button"
+        >
+            Close
+        </button>
+
+    </div>
+
+    <div class="ems-workflow-vehicle-grid">
+
+        <div class="ems-workflow-detail">
+            <span>Registration</span>
+            <strong id="emsWorkflowRegistration">-</strong>
+        </div>
+
+        <div class="ems-workflow-detail">
+            <span>VIN</span>
+            <strong id="emsWorkflowVin">-</strong>
+        </div>
+
+        <div class="ems-workflow-detail">
+            <span>Job Card</span>
+            <strong id="emsWorkflowJobCard">-</strong>
+        </div>
+
+        <div class="ems-workflow-detail">
+            <span>Customer</span>
+            <strong id="emsWorkflowCustomer">-</strong>
+        </div>
+
+        <div class="ems-workflow-detail">
+            <span>Current Phase</span>
+            <strong id="emsWorkflowPhase">-</strong>
+        </div>
+
+        <div class="ems-workflow-detail">
+            <span>Current Status</span>
+            <strong id="emsWorkflowStatus">-</strong>
+        </div>
+
+    </div>
+
+<!-- =========================================================
+     PHASE 1 - SERVICE ADVISOR RECEIVING
+========================================================= -->
+
+<div id="emsPhase1Workflow" class="ems-phase-workflow">
+
+    <div class="ems-phase-header">
+        <div>
+            <span class="eyebrow">PHASE 1</span>
+            <h3>Service Advisor Receiving</h3>
+            <p>
+                Confirm vehicle arrival and open the Repair Order / Job Card.
+            </p>
+        </div>
+
+        <span id="emsPhase1Status" class="ems-phase-status">
+            Awaiting Vehicle
+        </span>
+    </div>
+
+    <div class="ems-workflow-steps">
+
+        <!-- STEP 1 -->
+        <div id="emsStepBooking" class="ems-workflow-step completed">
+            <div class="ems-step-number">1</div>
+
+            <div class="ems-step-content">
+                <strong>Booking Created</strong>
+                <span>EMS booking has been created successfully.</span>
+            </div>
+
+            <div class="ems-step-state">✓</div>
+        </div>
+
+
+        <!-- STEP 2 -->
+        <div id="emsStepArrival" class="ems-workflow-step active">
+            <div class="ems-step-number">2</div>
+
+            <div class="ems-step-content">
+                <strong>Vehicle Arrived</strong>
+                <span id="emsArrivalStatusText">
+                    Waiting for vehicle arrival.
+                </span>
+            </div>
+
+            <button
+                id="confirmEmsArrivalButton"
+                class="primary-button"
+                type="button"
+            >
+                Confirm Vehicle Arrived
+            </button>
+        </div>
+
+
+        <!-- STEP 3 -->
+        <div id="emsStepJobCard" class="ems-workflow-step locked">
+            <div class="ems-step-number">3</div>
+
+            <div class="ems-step-content">
+                <strong>Open Repair Order / Job Card</strong>
+                <span id="emsJobCardStatusText">
+                    Available after vehicle arrival is confirmed.
+                </span>
+            </div>
+
+            <div class="ems-jobcard-action">
+
+                <input
+                    id="emsActualJobCard"
+                    type="text"
+                    placeholder="Enter RO / Job Card number"
+                    disabled
+                >
+
+                <button
+                    id="confirmEmsJobCardButton"
+                    class="primary-button"
+                    type="button"
+                    disabled
+                >
+                    Confirm Job Card Opened
+                </button>
+
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+</section>
+
+<!-- ============================================
+     PHASE 2 - FOREMAN / WORKSHOP CONTROL
+================================================ -->
+
+<section
+    id="emsPhase2Workflow"
+    class="ems-phase-workflow hidden"
+>
+    <div class="ems-phase-header">
+        <div>
+            <span class="eyebrow">PHASE 2</span>
+            <h3>Foreman / Workshop Control</h3>
+            <p>
+                Job Card handover and workshop preparation.
+            </p>
+        </div>
+
+        <span
+            id="emsPhase2Status"
+            class="ems-phase-status"
+        >
+            Awaiting Job Card
+        </span>
+    </div>
+
+    <div class="ems-workflow-steps">
+
+        <!-- STEP 1 -->
+        <div
+            id="emsStepForemanReceived"
+            class="ems-workflow-step active"
+        >
+            <div class="ems-step-number">1</div>
+
+            <div class="ems-step-content">
+                <strong>Job Card Received by Foreman</strong>
+
+                <span id="emsForemanReceivedStatusText">
+                    Waiting for Foreman to confirm physical receipt
+                    of the Job Card.
+                </span>
+            </div>
+
+            <button
+                id="confirmEmsForemanReceivedButton"
+                class="primary-button"
+                type="button"
+            >
+                Confirm Job Card Received
+            </button>
+        </div>
+
+        <!-- STEP 2 -->
+        <div
+            id="emsStepTechnicianAssignment"
+            class="ems-workflow-step locked"
+        >
+            <div class="ems-step-number">2</div>
+
+            <div class="ems-step-content">
+                <strong>Assign Technician</strong>
+
+                <span id="emsTechnicianAssignmentStatusText">
+                    Available after the Foreman confirms receipt
+                    of the Job Card.
+                </span>
+            </div>
+        </div>
+
+    </div>
+</section>
 
             <!-- =================================================
                  NEW EMS BOOKING

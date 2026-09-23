@@ -345,6 +345,19 @@
                 </option>
             </select>
         </div>
+        <!-- Allocated Customer -->
+<div id="preArrivalCustomerField" style="display: none;">
+    <label for="preArrivalCustomer">
+        Customer Name
+    </label>
+
+    <input
+        type="text"
+        id="preArrivalCustomer"
+        placeholder="Enter allocated customer name"
+        autocomplete="off"
+    >
+</div>
 
         <div>
     </div>
@@ -921,7 +934,13 @@
     <strong id="workflowStockClassification">
         -
     </strong>
-
+<div
+    id="workflowAllocatedCustomerRow"
+    style="display: none; margin-top: 8px; margin-bottom: 10px;"
+>
+    <span>Allocated Customer</span>
+    <strong id="workflowAllocatedCustomer">-</strong>
+</div>
     <button
         id="changeClassificationBtn"
         class="workflow-small-btn"
@@ -1774,6 +1793,37 @@
             </select>
 
         </div>
+        <div
+    id="allocatedCustomerField"
+    class="classification-field hidden"
+>
+    <label for="allocatedCustomerInput">
+        Customer Name
+    </label>
+
+    <input
+        id="allocatedCustomerInput"
+        type="text"
+        placeholder="Enter customer name"
+        autocomplete="off"
+    >
+</div>
+         
+        <div
+    id="allocatedCustomerField"
+    class="classification-field hidden"
+>
+    <label for="allocatedCustomerInput">
+        Customer Name
+    </label>
+
+    <input
+        type="text"
+        id="allocatedCustomerInput"
+        placeholder="Enter allocated customer name"
+        autocomplete="off"
+    >
+</div>
 
         <div class="classification-modal-actions">
 
