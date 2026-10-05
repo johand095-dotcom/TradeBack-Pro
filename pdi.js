@@ -1493,7 +1493,6 @@ document
     )
     .textContent =
         lowPriorityCount;
-}
 
 function renderAwaitingArrivalTable() {
 
