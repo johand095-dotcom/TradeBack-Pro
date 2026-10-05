@@ -1,9 +1,10 @@
-/* EMS Phase 3 required document attachments
-   Step 6: authorisation document
-   Step 13: release note
-   Keeps the existing Phase 3 render/performance architecture intact. */
+/* EMS Phase 3 mandatory document gates
+   Step 6: authorisation document is required before authorisation can complete.
+   Step 13: release note is required before vehicle release can complete.
+   Performance rule: no Supabase reads while rendering and no document-wide mutation observer. */
 (function () {
   let busy = false;
+  let scheduled = false;
 
   function selectedCase() {
     try { if (typeof emsSelectedCase !== 'undefined' && emsSelectedCase) return emsSelectedCase; } catch (_) {}
@@ -33,16 +34,6 @@
     const id = data?.session?.user?.id;
     if (!id) throw new Error('No signed-in user found.');
     return id;
-  }
-
-  function fmt(v) {
-    if (!v) return '';
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return '';
-    return new Intl.DateTimeFormat('en-ZA', {
-      timeZone: 'Africa/Johannesburg', day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit', hour12: false
-    }).format(d).replace(',', ' ·');
   }
 
   function syncCase(data) {
@@ -78,80 +69,120 @@
     try { localStorage.setItem(`ems_${c.id}_${name}`, JSON.stringify(value)); } catch (_) {}
   }
 
+  function actionMarkup(inputId, buttonId, buttonText) {
+    return `<div class="ems-jobcard-action ems-required-document" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto">
+      <input id="${inputId}" type="file" accept="image/*,.pdf">
+      <button id="${buttonId}" class="primary-button" type="button">${buttonText}</button>
+    </div>`;
+  }
+
   function enhanceStep6() {
     const c = selectedCase();
     const section = document.getElementById('emsPhase3Workflow');
     if (!c || !section || section.classList.contains('hidden') || Number(c.current_phase) !== 3) return;
+
+    /* Only gate an incomplete Step 6. Once completed, its stored document path remains audit evidence. */
+    if (c.authorisation_document_path) return;
     const button = document.getElementById('emsConfirmAuthorisationReceived');
-    if (!button || document.getElementById('emsAuthorisationDocument')) return;
-    button.style.display = 'none';
-    const action = document.createElement('div');
-    action.className = 'ems-jobcard-action';
-    action.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto';
-    action.innerHTML = '<input id="emsAuthorisationDocument" type="file" accept="image/*,.pdf"><button id="emsAttachAuthorisation" class="primary-button" type="button">Attach & Confirm Authorisation</button>';
-    button.insertAdjacentElement('afterend', action);
+    if (!button) return;
+    const card = button.closest('.ems-workflow-step');
+    if (!card || card.querySelector('#emsAttachAuthorisation')) return;
+    button.remove();
+    card.insertAdjacentHTML('beforeend', actionMarkup('emsAuthorisationDocument','emsAttachAuthorisation','Attach & Confirm Authorisation'));
   }
 
   function enhanceStep13() {
     const c = selectedCase();
-    if (!c || Number(c.current_phase) !== 3) return;
-    const button = document.getElementById('emsReleaseVehicle');
-    if (!button || document.getElementById('emsReleaseNote')) return;
-    button.style.display = 'none';
-    const action = document.createElement('div');
-    action.className = 'ems-jobcard-action';
-    action.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto';
-    action.innerHTML = '<input id="emsReleaseNote" type="file" accept="image/*,.pdf"><button id="emsAttachReleaseNote" class="primary-button" type="button">Attach Release Note & Release</button>';
-    button.insertAdjacentElement('afterend', action);
+    if (!c || Number(c.current_phase) !== 3 || c.vehicle_released_at) return;
+    const card = document.querySelector('[data-ems-completion-step="13"]');
+    if (!card || card.querySelector('#emsAttachReleaseNote')) return;
+    const button = card.querySelector('#emsReleaseVehicle');
+    if (button) button.remove();
+    card.insertAdjacentHTML('beforeend', actionMarkup('emsReleaseNote','emsAttachReleaseNote','Attach Release Note & Release'));
   }
 
   function enhance() {
+    scheduled = false;
     enhanceStep6();
     enhanceStep13();
   }
 
+  function scheduleEnhance(delay = 0) {
+    if (scheduled) return;
+    scheduled = true;
+    setTimeout(enhance, delay);
+  }
+
   document.addEventListener('click', async event => {
     const b = event.target.closest('#emsAttachAuthorisation,#emsAttachReleaseNote');
-    if (!b) return;
+    if (!b) {
+      /* A workflow action may redraw the active step. Re-apply gates once, after that action. */
+      if (event.target.closest('#emsPhase3Workflow,#emsPhase3CompletionSteps')) scheduleEnhance(25);
+      return;
+    }
+
     event.preventDefault();
     event.stopImmediatePropagation();
     if (busy) return;
     const c = selectedCase();
     if (!c) return alert('The open EMS vehicle could not be resolved. Please close and reopen it.');
+
     const original = b.textContent;
-    busy = true; b.disabled = true; b.textContent = 'Uploading...';
+    busy = true;
+    b.disabled = true;
+    b.textContent = 'Uploading...';
+
     try {
       const uid = await userId();
       const now = new Date().toISOString();
       const by = currentUserName();
+
       if (b.id === 'emsAttachAuthorisation') {
         const file = document.getElementById('emsAuthorisationDocument')?.files?.[0];
         if (!file) throw new Error('Please choose the authorisation document first.');
-        if (!window.confirm('Attach this document and confirm authorisation has been received?')) { b.disabled=false; b.textContent=original; return; }
+        if (!window.confirm('Attach this document and confirm authorisation has been received?')) {
+          b.disabled=false; b.textContent=original; return;
+        }
         const path = await upload(c, file, 'authorisation');
-        await saveCase(c, { authorisation_document_path:path, current_step:7, current_step_started_at:now, workflow_status:'Authorised' });
+        await saveCase(c, {
+          authorisation_document_path:path,
+          current_step:7,
+          current_step_started_at:now,
+          workflow_status:'Authorised'
+        });
         localSet(c, 'authorisation_received', { at:now, by });
         try { if (typeof renderEmsPhase3 === 'function') renderEmsPhase3(emsSelectedCase); } catch (_) {}
+        try { if (typeof renderEmsCompletionSteps === 'function') renderEmsCompletionSteps(); } catch (_) {}
       } else {
         const file = document.getElementById('emsReleaseNote')?.files?.[0];
         if (!file) throw new Error('Please choose the release note first.');
-        if (!window.confirm('Attach this release note and confirm the vehicle has been released?')) { b.disabled=false; b.textContent=original; return; }
+        if (!window.confirm('Attach this release note and confirm the vehicle has been released?')) {
+          b.disabled=false; b.textContent=original; return;
+        }
         const path = await upload(c, file, 'release-note');
-        await saveCase(c, { release_note_path:path, vehicle_released_at:now, vehicle_released_by:uid, current_step:14, current_step_started_at:now, workflow_status:'Released' });
+        await saveCase(c, {
+          release_note_path:path,
+          vehicle_released_at:now,
+          vehicle_released_by:uid,
+          current_step:14,
+          current_step_started_at:now,
+          workflow_status:'Released'
+        });
         try { if (typeof renderEmsCompletionSteps === 'function') renderEmsCompletionSteps(); } catch (_) {}
       }
     } catch (e) {
       console.error('EMS document attachment failed:', e);
       alert('EMS document could not be attached.\n\n' + (e.message || 'Unknown error'));
       if (document.body.contains(b)) { b.disabled=false; b.textContent=original; }
-    } finally { busy = false; setTimeout(enhance, 0); }
+    } finally {
+      busy = false;
+      scheduleEnhance(0);
+    }
   }, true);
 
-  let timer = null;
-  const observer = new MutationObserver(() => {
-    clearTimeout(timer);
-    timer = setTimeout(enhance, 20);
-  });
-  observer.observe(document.documentElement, { childList:true, subtree:true });
-  window.addEventListener('load', enhance);
+  /* Initial render only. We intentionally avoid the previous document-wide MutationObserver;
+     it was reacting to every Phase 3 DOM change and contributed unnecessary render churn. */
+  window.addEventListener('load', () => scheduleEnhance(50));
+  document.addEventListener('DOMContentLoaded', () => scheduleEnhance(0));
+  setTimeout(() => scheduleEnhance(0), 250);
 })();
