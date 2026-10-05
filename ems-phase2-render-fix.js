@@ -4,6 +4,28 @@
 ========================================================= */
 
 (function () {
+    function getSelectedEmsCase() {
+        // emsSelectedCase is declared with `let` in ems-core.js. Global `let`
+        // bindings are shared by classic scripts, but are NOT properties of window.
+        try {
+            if (emsSelectedCase) return emsSelectedCase;
+        } catch (_) {}
+
+        try {
+            if (Array.isArray(emsCases)) {
+                const workflowNumber = document.getElementById('emsWorkflowNumber')?.textContent?.trim();
+                const workflowVin = document.getElementById('emsWorkflowVin')?.textContent?.trim();
+
+                return emsCases.find(item =>
+                    (workflowNumber && String(item.ems_no || '') === workflowNumber) ||
+                    (workflowVin && String(item.vin || '') === workflowVin)
+                ) || null;
+            }
+        } catch (_) {}
+
+        return null;
+    }
+
     function renderEmsPhase2Fixed(caseData) {
         if (!caseData || Number(caseData.current_phase) !== 2) return;
 
@@ -25,9 +47,7 @@
                 receivedStep.classList.add('completed');
             }
 
-            if (receivedText) {
-                receivedText.textContent = 'Job Card receipt confirmed by Foreman.';
-            }
+            if (receivedText) receivedText.textContent = 'Job Card receipt confirmed by Foreman.';
 
             if (receivedButton) {
                 receivedButton.disabled = true;
@@ -66,15 +86,16 @@
     }
 
     // Patch workflow opening so Phase 2 always renders from the saved record.
-    const originalOpenEmsWorkflow = window.openEmsWorkflow;
-    if (typeof originalOpenEmsWorkflow === 'function') {
-        window.openEmsWorkflow = function (emsId) {
-            originalOpenEmsWorkflow(emsId);
-            const selected = Array.isArray(window.emsCases)
-                ? window.emsCases.find(item => String(item.id) === String(emsId))
-                : null;
-            renderEmsPhase2Fixed(selected || window.emsSelectedCase);
-        };
+    try {
+        const originalOpenEmsWorkflow = openEmsWorkflow;
+        if (typeof originalOpenEmsWorkflow === 'function') {
+            openEmsWorkflow = function (emsId) {
+                originalOpenEmsWorkflow(emsId);
+                renderEmsPhase2Fixed(getSelectedEmsCase());
+            };
+        }
+    } catch (error) {
+        console.warn('EMS Phase 2 open-workflow patch could not be installed:', error);
     }
 
     // The HTML button is confirmEmsForemanReceivedButton. The older core listener
@@ -83,9 +104,13 @@
         const button = event.target.closest('#confirmEmsForemanReceivedButton');
         if (!button) return;
 
-        const selectedCase = window.emsSelectedCase;
+        // Prevent another delegated handler from processing the same click.
+        event.stopImmediatePropagation();
+
+        const selectedCase = getSelectedEmsCase();
         if (!selectedCase) {
-            alert('No EMS vehicle selected.');
+            console.error('EMS Phase 2: selected case could not be resolved.');
+            alert('The open EMS vehicle could not be resolved. Please close the workflow and open it again.');
             return;
         }
 
@@ -103,12 +128,14 @@
             button.disabled = true;
             button.textContent = 'Confirming...';
 
-            const { data: { user }, error: userError } = await window.supabaseClient.auth.getUser();
+            // supabaseClient is also a global lexical binding from ems-core.js,
+            // so use it directly rather than window.supabaseClient.
+            const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
             if (userError) throw userError;
             if (!user) throw new Error('No signed-in user found.');
 
             const receivedTime = new Date().toISOString();
-            const { data, error } = await window.supabaseClient
+            const { data, error } = await supabaseClient
                 .from('ems_cases')
                 .update({
                     foreman_job_card_received_at: receivedTime,
@@ -123,14 +150,16 @@
 
             if (error) throw error;
 
-            // Core state is declared with let, so update it through direct names when available.
-            try { emsSelectedCase = data; } catch (_) {}
-            try { await loadEmsCases(); } catch (_) {}
+            emsSelectedCase = data;
+            await loadEmsCases();
 
-            renderEmsPhase2Fixed(data);
+            // loadEmsCases refreshes the array; restore the selected row from the
+            // freshly loaded data before re-rendering the open workflow.
+            const refreshedCase = emsCases.find(item => String(item.id) === String(data.id)) || data;
+            emsSelectedCase = refreshedCase;
 
-            // Re-open after dashboard reload so every workflow field reflects the saved row.
-            try { window.openEmsWorkflow(data.id); } catch (_) {}
+            openEmsWorkflow(refreshedCase.id);
+            renderEmsPhase2Fixed(refreshedCase);
 
         } catch (error) {
             console.error('EMS Foreman Job Card receipt failed:', error);
@@ -138,7 +167,7 @@
             button.disabled = false;
             button.textContent = 'Confirm Job Card Received';
         }
-    });
+    }, true);
 
     window.renderEmsPhase2Fixed = renderEmsPhase2Fixed;
 })();
