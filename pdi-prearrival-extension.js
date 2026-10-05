@@ -13,480 +13,272 @@
         return window.supabaseClient || null;
     }
 
-    /* =====================================================
-       ADD NEW PRE-ARRIVAL FIELDS
-    ===================================================== */
-
     function addPreArrivalFields() {
+        if ($("preArrivalStockNo") || $("preArrivalSalesperson")) return;
 
-        if (
-            $("preArrivalStockNo") ||
-            $("preArrivalSalesperson")
-        ) {
-            return;
-        }
-
-        const anchor =
-            $("preArrivalSupplier") ||
-            $("preArrivalMake") ||
-            $("preArrivalModel");
-
+        const anchor = $("preArrivalSupplier") || $("preArrivalMake") || $("preArrivalModel");
         if (!anchor) {
-            console.warn(
-                "Pre-arrival extension: form anchor not found."
-            );
+            console.warn("Pre-arrival extension: form anchor not found.");
             return;
         }
 
-        const wrapper =
-            anchor.closest(
-                ".prearrival-field, .form-field, div"
-            );
+        const wrapper = anchor.closest(".prearrival-field, .form-field, div");
+        if (!wrapper || !wrapper.parentElement) return;
 
-        if (
-            !wrapper ||
-            !wrapper.parentElement
-        ) {
-            return;
-        }
-
-        const host =
-            document.createElement("div");
-
-        host.id =
-            "preArrivalExtensionFields";
-
-        host.style.display =
-            "contents";
-
+        const host = document.createElement("div");
+        host.id = "preArrivalExtensionFields";
+        host.style.display = "contents";
         host.innerHTML = `
-
             <div class="prearrival-field">
-
-                <label for="preArrivalStockNo">
-                    Stock Number
-                </label>
-
-                <input
-                    type="text"
-                    id="preArrivalStockNo"
-                    placeholder="Enter ELT stock number"
-                    autocomplete="off"
-                >
-
+                <label for="preArrivalStockNo">Stock Number</label>
+                <input type="text" id="preArrivalStockNo" placeholder="Enter ELT stock number" autocomplete="off">
             </div>
-
-
             <div class="prearrival-field">
-
-                <label for="preArrivalSalesperson">
-                    Allocated Salesperson
-                </label>
-
+                <label for="preArrivalSalesperson">Allocated Salesperson</label>
                 <select id="preArrivalSalesperson">
-
-                    <option value="">
-                        Unallocated / select salesperson...
-                    </option>
-
+                    <option value="">Unallocated / select salesperson...</option>
                 </select>
-
             </div>
         `;
 
-        wrapper.parentElement.insertBefore(
-            host,
-            wrapper.nextSibling
-        );
+        wrapper.parentElement.insertBefore(host, wrapper.nextSibling);
     }
 
+    function normaliseRoles(roles) {
+        if (!roles) return [];
+        if (Array.isArray(roles)) return roles.map(role => String(role).trim().toLowerCase());
 
-    /* =====================================================
-       IDENTIFY SALES USERS
-    ===================================================== */
+        if (typeof roles === "string") {
+            try {
+                const parsed = JSON.parse(roles);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(role => String(role).trim().toLowerCase());
+                }
+            } catch (error) {
+                return roles
+                    .replace(/[\[\]"]/g, "")
+                    .split(",")
+                    .map(role => role.trim().toLowerCase())
+                    .filter(Boolean);
+            }
+        }
+
+        return [String(roles).trim().toLowerCase()];
+    }
 
     function rolesContainSalesperson(roles) {
-
-    if (!roles) {
-        return false;
+        return normaliseRoles(roles).includes("sales person");
     }
 
-    if (Array.isArray(roles)) {
+    function currentUserIsSalespersonOnly() {
+        if (!window.pdiUserProfile && typeof pdiUserProfile === "undefined") return false;
 
-        return roles.some(
-            role =>
-                String(role)
-                    .trim()
-                    .toLowerCase() ===
-                "sales person"
+        const profile =
+            typeof pdiUserProfile !== "undefined"
+                ? pdiUserProfile
+                : window.pdiUserProfile;
+
+        if (!profile || profile.is_admin === true) return false;
+
+        const roles = normaliseRoles(profile.roles);
+        return (
+            roles.includes("sales person") &&
+            !roles.includes("admin manager") &&
+            !roles.includes("pdi admin") &&
+            !roles.includes("pdi controller") &&
+            !roles.includes("sales admin")
         );
     }
 
-    if (typeof roles === "string") {
+    function applySalespersonCaseScope() {
+        if (!currentUserIsSalespersonOnly()) return false;
+        if (typeof pdiCases === "undefined" || !Array.isArray(pdiCases)) return false;
 
-        try {
+        const userId =
+            (typeof pdiUserProfile !== "undefined" ? pdiUserProfile?.user_id : null) ||
+            window.pdiUserProfile?.user_id ||
+            null;
 
-            const parsed =
-                JSON.parse(roles);
-
-            if (Array.isArray(parsed)) {
-
-                return parsed.some(
-                    role =>
-                        String(role)
-                            .trim()
-                            .toLowerCase() ===
-                        "sales person"
-                );
-            }
-
-        } catch (error) {
-
-            return roles
-                .replace(/[\[\]"]/g, "")
-                .split(",")
-                .some(
-                    role =>
-                        role
-                            .trim()
-                            .toLowerCase() ===
-                        "sales person"
-                );
+        if (!userId) {
+            console.warn("Salesperson dashboard filter: signed-in user ID is unavailable.");
+            pdiCases = [];
+            return true;
         }
+
+        const beforeCount = pdiCases.length;
+        pdiCases = pdiCases.filter(
+            item => String(item.allocated_salesperson_id || "") === String(userId)
+        );
+
+        console.log(
+            "Salesperson dashboard scope applied:",
+            {
+                userId,
+                before: beforeCount,
+                visible: pdiCases.length
+            }
+        );
+
+        return true;
     }
 
-    return false;
-}
-
-
-    /* =====================================================
-       LOAD ACTIVE SALESPEOPLE
-    ===================================================== */
-
-    async function loadSalespeople() {
-
-        const client =
-            getSupabase();
-
-        const select =
-            $("preArrivalSalesperson");
-
-        if (
-            !client ||
-            !select
-        ) {
+    function installSalespersonDashboardScope() {
+        if (typeof window.loadPdiCases !== "function") {
+            console.warn("Salesperson dashboard filter: loadPdiCases is not available yet.");
             return;
         }
 
-        select.innerHTML = `
-            <option value="">
-                Unallocated / select salesperson...
-            </option>
-        `;
+        if (window.loadPdiCases.__salespersonScoped) return;
 
-        try {
+        const originalLoadPdiCases = window.loadPdiCases;
 
-            const {
-                data,
-                error
-            } =
-                await client
-                    .from("user_profiles")
-                    .select(
-                        "user_id, full_name, email, roles, is_active"
-                    )
-                    .eq(
-                        "is_active",
-                        true
-                    )
-                    .order(
-                        "full_name",
-                        {
-                            ascending: true
-                        }
-                    );
+        const scopedLoadPdiCases = async function (...args) {
+            const result = await originalLoadPdiCases.apply(this, args);
 
-            if (error) {
-                throw error;
+            if (applySalespersonCaseScope()) {
+                if (typeof window.renderPdiDashboard === "function") {
+                    window.renderPdiDashboard();
+                }
+                if (typeof window.renderPdiVehicleTable === "function") {
+                    window.renderPdiVehicleTable();
+                }
+                if (typeof window.renderPdiArchive === "function") {
+                    window.renderPdiArchive();
+                }
+                if (typeof window.renderMyPdiActions === "function") {
+                    await window.renderMyPdiActions();
+                }
             }
 
-            const salespeople =
-                (data || [])
-                    .filter(
-                        profile =>
-                            rolesContainSalesperson(
-                                profile.roles
-                            )
-                    );
+            return result;
+        };
 
-            salespeople.forEach(
-                profile => {
+        scopedLoadPdiCases.__salespersonScoped = true;
+        window.loadPdiCases = scopedLoadPdiCases;
 
-                    const option =
-                        document.createElement(
-                            "option"
-                        );
-
-                    option.value =
-                        profile.user_id;
-
-                    option.dataset.name =
-                        profile.full_name ||
-                        profile.email ||
-                        "Salesperson";
-
-                    option.textContent =
-                        profile.full_name ||
-                        profile.email ||
-                        "Salesperson";
-
-                    select.appendChild(
-                        option
-                    );
-                }
-            );
-
-            console.log(
-                "Salespeople loaded:",
-                salespeople.length
-            );
-
+        try {
+            loadPdiCases = scopedLoadPdiCases;
         } catch (error) {
-
-            console.error(
-                "Could not load salespeople:",
-                error
-            );
+            console.warn("Salesperson dashboard filter: global loadPdiCases binding could not be replaced.", error);
         }
+
+        console.log("Salesperson dashboard scope installed.");
     }
 
+    async function loadSalespeople() {
+        const client = getSupabase();
+        const select = $("preArrivalSalesperson");
+        if (!client || !select) return;
+
+        select.innerHTML = `<option value="">Unallocated / select salesperson...</option>`;
+
+        try {
+            const { data, error } = await client
+                .from("user_profiles")
+                .select("user_id, full_name, email, roles, is_active")
+                .eq("is_active", true)
+                .order("full_name", { ascending: true });
+
+            if (error) throw error;
+
+            const salespeople = (data || []).filter(
+                profile => rolesContainSalesperson(profile.roles)
+            );
+
+            salespeople.forEach(profile => {
+                const option = document.createElement("option");
+                option.value = profile.user_id;
+                option.dataset.name = profile.full_name || profile.email || "Salesperson";
+                option.textContent = profile.full_name || profile.email || "Salesperson";
+                select.appendChild(option);
+            });
+
+            console.log("Salespeople loaded:", salespeople.length);
+        } catch (error) {
+            console.error("Could not load salespeople:", error);
+        }
+    }
 
     function getSelectedSalesperson() {
+        const select = $("preArrivalSalesperson");
+        if (!select || !select.value) return { id: null, name: null };
 
-        const select =
-            $("preArrivalSalesperson");
-
-        if (
-            !select ||
-            !select.value
-        ) {
-
-            return {
-                id: null,
-                name: null
-            };
-        }
-
-        const option =
-            select.options[
-                select.selectedIndex
-            ];
-
+        const option = select.options[select.selectedIndex];
         return {
-
-            id:
-                select.value,
-
-            name:
-                option?.dataset?.name ||
-                option?.textContent?.trim() ||
-                null
+            id: select.value,
+            name: option?.dataset?.name || option?.textContent?.trim() || null
         };
     }
-        /* =====================================================
-       LINK EXTRA DATA TO NEW PDI ORDER
-    ===================================================== */
 
     function watchForSuccessfulOrder() {
-
-        const message =
-            $("preArrivalOrderMessage");
-
+        const message = $("preArrivalOrderMessage");
         if (!message) {
-
-            console.warn(
-                "Pre-arrival extension: order message element not found."
-            );
-
+            console.warn("Pre-arrival extension: order message element not found.");
             return;
         }
 
         let processing = false;
 
-        const observer =
-            new MutationObserver(
-                async () => {
+        const observer = new MutationObserver(async () => {
+            const text = (message.textContent || "").trim().toLowerCase();
+            if (!text.includes("added successfully") || processing) return;
 
-                    const text =
-                        (
-                            message.textContent ||
-                            ""
-                        )
-                            .trim()
-                            .toLowerCase();
+            const client = getSupabase();
+            if (!client) return;
 
-                    if (
-                        !text.includes(
-                            "added successfully"
-                        ) ||
-                        processing
-                    ) {
-                        return;
+            processing = true;
+
+            const stockNo = ($("preArrivalStockNo")?.value || "").trim();
+            const salesperson = getSelectedSalesperson();
+
+            try {
+                console.log(
+                    "Pre-arrival order created with allocation:",
+                    {
+                        stockNo: stockNo || null,
+                        salesperson: salesperson?.name || null
                     }
+                );
 
-                    const client =
-                        getSupabase();
-
-                    if (!client) {
-                        return;
-                    }
-
-                    processing = true;
-
-                    const stockNo =
-                        (
-                            $("preArrivalStockNo")
-                                ?.value ||
-                            ""
-                        ).trim();
-
-                    const salesperson =
-                        getSelectedSalesperson();
-
-                    try {
-
-                      /*
-    Stock number and allocated salesperson are now written
-    directly to pdi_cases by pdi.js when the OEM order is created.
-
-    The old "find newest Awaiting Arrival record and enrich it"
-    process has therefore been removed.
-
-    This avoids the risk of updating the wrong vehicle when
-    multiple users create OEM orders at similar times.
-*/
-
-console.log(
-    "Pre-arrival order created with allocation:",
-    {
-        stockNo: stockNo || null,
-        salesperson:
-            salesperson?.name || null
-    }
-);
-
-
-                        /*
-                           Refresh PDI data so Waiting Orders
-                           immediately shows the updated record.
-                        */
-
-                        if (
-                            typeof window
-                                .loadPdiCases ===
-                            "function"
-                        ) {
-
-                            await window
-                                .loadPdiCases();
-                        }
-
-                        if (
-                            typeof window
-                                .renderPdiDashboard ===
-                            "function"
-                        ) {
-
-                            window
-                                .renderPdiDashboard();
-                        }
-
-
-                        /*
-                           Clear extension fields ready
-                           for the next OEM order.
-                        */
-
-                        if (
-                            $("preArrivalStockNo")
-                        ) {
-
-                            $("preArrivalStockNo")
-                                .value = "";
-                        }
-
-                        if (
-                            $("preArrivalSalesperson")
-                        ) {
-
-                            $("preArrivalSalesperson")
-                                .value = "";
-                        }
-
-                    } catch (error) {
-
-                  console.error(
-    "Pre-arrival post-save refresh failed:",
-    error
-);
-
-alert(
-    "The OEM order was created, but the dashboard could not refresh automatically. Please refresh the page."
-);
-
-                    } finally {
-
-                        processing =
-                            false;
-                    }
+                if (typeof window.loadPdiCases === "function") {
+                    await window.loadPdiCases();
                 }
-            );
 
-        observer.observe(
-            message,
-            {
-                childList: true,
-                characterData: true,
-                subtree: true
+                if (typeof window.renderPdiDashboard === "function") {
+                    window.renderPdiDashboard();
+                }
+
+                if ($("preArrivalStockNo")) $("preArrivalStockNo").value = "";
+                if ($("preArrivalSalesperson")) $("preArrivalSalesperson").value = "";
+            } catch (error) {
+                console.error("Pre-arrival post-save refresh failed:", error);
+                alert("The OEM order was created, but the dashboard could not refresh automatically. Please refresh the page.");
+            } finally {
+                processing = false;
             }
-        );
+        });
+
+        observer.observe(message, {
+            childList: true,
+            characterData: true,
+            subtree: true
+        });
     }
-
-
-    /* =====================================================
-       INITIALISE EXTENSION
-    ===================================================== */
 
     async function initialisePreArrivalExtension() {
-
-        console.log(
-            "PDI Pre-Arrival Extension loading..."
-        );
+        console.log("PDI Pre-Arrival Extension loading...");
 
         addPreArrivalFields();
-
+        installSalespersonDashboardScope();
         await loadSalespeople();
-
         watchForSuccessfulOrder();
 
-        console.log(
-            "PDI Pre-Arrival Extension ready."
-        );
+        console.log("PDI Pre-Arrival Extension ready.");
     }
 
-
-    if (
-        document.readyState ===
-        "loading"
-    ) {
-
-        document.addEventListener(
-            "DOMContentLoaded",
-            initialisePreArrivalExtension
-        );
-
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initialisePreArrivalExtension);
     } else {
-
         initialisePreArrivalExtension();
     }
 
