@@ -4,3 +4,4 @@ document.write('<script src="ems-phase2-render-fix.js"><\/script>');
 document.write('<script src="ems-audit-stamps.js"><\/script>');
 document.write('<script src="ems-phase3-completion.js"><\/script>');
 document.write('<script src="ems-phase3-document-attachments.js"><\/script>');
+document.write('<script src="ems-phase2-technician-text.js"><\/script>');
