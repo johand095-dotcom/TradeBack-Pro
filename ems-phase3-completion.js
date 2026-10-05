@@ -1,4 +1,4 @@
-/* EMS Phase 3 completion extension: persistent steps 9-14 + Supabase audit trail. */
+/* EMS Phase 3 completion extension: stable persistent steps 9-14 with fast local updates. */
 (function () {
   const profileCache = new Map();
   let renderTimer = null;
@@ -13,6 +13,19 @@
         (no && String(x.ems_no || '') === no) || (vin && String(x.vin || '') === vin)
       ) || null;
     } catch (_) { return null; }
+  }
+
+  function completionHost() {
+    const main = document.getElementById('emsPhase3Steps');
+    if (!main) return null;
+    let tail = document.getElementById('emsPhase3CompletionSteps');
+    if (!tail) {
+      tail = document.createElement('div');
+      tail.id = 'emsPhase3CompletionSteps';
+      tail.className = 'ems-workflow-steps';
+      main.insertAdjacentElement('afterend', tail);
+    }
+    return tail;
   }
 
   async function signedUser() {
@@ -58,12 +71,11 @@
   async function renderCompletionSteps() {
     if (rendering) return;
     const c = selectedCase();
-    const host = document.getElementById('emsPhase3Steps');
     const section = document.getElementById('emsPhase3Workflow');
+    const host = completionHost();
     if (!c || !host || !section || section.classList.contains('hidden') || Number(c.current_phase) !== 3) return;
     rendering = true;
     try {
-      host.querySelectorAll('[data-ems-completion-step]').forEach(el => el.remove());
       const oldRepairs = legacy(c, 'repairs_completed');
       const repairsComplete = Boolean(c.repairs_completed_at || oldRepairs?.at);
       const qc = Boolean(c.qc_passed_at);
@@ -80,14 +92,14 @@
       const s13 = released ? await stamp(c.vehicle_released_at, c.vehicle_released_by, 'Released by') : 'Confirm the vehicle has been released.';
       const s14 = finalised ? `${await stamp(c.invoice_signed_at, c.invoice_signed_by)} · Proof attached` : 'Attach the signed invoice / official proof to complete the EMS case.';
 
-      host.insertAdjacentHTML('beforeend', [
+      host.innerHTML = [
         card(9,'QC Passed',s9,qc,repairsComplete&&!qc,'<button id="emsQcPassed" class="primary-button" type="button">Confirm QC Passed</button>'),
         card(10,'Job Card Handed to Front Office',s10,handed,qc&&!handed,'<button id="emsHandFrontOffice" class="primary-button" type="button">Hand to Front Office</button>'),
         card(11,'Job Card Accepted by Front Office',s11,accepted,handed&&!accepted,'<button id="emsAcceptFrontOffice" class="primary-button" type="button">Accept Job Card</button>'),
         card(12,'Job Card Invoiced',s12,invoiced,accepted&&!invoiced,'<div class="ems-jobcard-action" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input id="emsInvoiceNumber" type="text" placeholder="Invoice number" style="padding:12px;border:1px solid #cbd8e6;border-radius:10px"><button id="emsConfirmInvoice" class="primary-button" type="button">Confirm Invoice</button></div>'),
         card(13,'Vehicle Released',s13,released,invoiced&&!released,'<button id="emsReleaseVehicle" class="primary-button" type="button">Confirm Vehicle Released</button>'),
         card(14,'Signed Invoice / Proof Attached → Completed',s14,finalised,released&&!finalised,'<div class="ems-jobcard-action" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input id="emsInvoiceProof" type="file" accept="image/*,.pdf"><button id="emsCompleteCase" class="primary-button" type="button">Attach Proof & Complete</button></div>')
-      ].join(''));
+      ].join('');
 
       const status = document.getElementById('emsPhase3Status');
       if (status) {
@@ -102,64 +114,89 @@
     } finally { rendering = false; }
   }
 
-  function scheduleRender(delay = 30) {
+  function scheduleRender(delay = 20) {
     clearTimeout(renderTimer);
     renderTimer = setTimeout(() => renderCompletionSteps().catch(e => console.error('EMS completion render failed:', e)), delay);
   }
 
-  async function updateCase(c, changes) {
-    const { data, error } = await supabaseClient.from('ems_cases').update({ ...changes, updated_at:new Date().toISOString() }).eq('id',c.id).select().single();
-    if (error) throw error;
-    emsSelectedCase=data;
-    await loadEmsCases();
-    const fresh=(Array.isArray(emsCases)?emsCases:[]).find(x=>String(x.id)===String(c.id))||data;
-    emsSelectedCase=fresh;
-    openEmsWorkflow(fresh.id);
-    scheduleRender(60);
-  }
-
-  async function simpleAction(c,promptText,changes) {
-    if(!confirm(promptText)) return;
-    const u=await signedUser(), now=new Date().toISOString(), resolved={};
-    Object.entries(changes).forEach(([k,v])=>resolved[k]=v==='$NOW'?now:v==='$USER'?u.id:v);
-    await updateCase(c,resolved);
-  }
-
-  document.addEventListener('click',async event=>{
-    const b=event.target.closest('#emsQcPassed,#emsHandFrontOffice,#emsAcceptFrontOffice,#emsConfirmInvoice,#emsReleaseVehicle,#emsCompleteCase');
-    if(!b)return;
-    event.preventDefault(); event.stopImmediatePropagation();
-    const c=selectedCase(); if(!c)return alert('The open EMS vehicle could not be resolved. Please close and reopen it.');
+  function syncCaseLocally(data) {
+    try { emsSelectedCase = data; } catch (_) {}
     try {
-      b.disabled=true;
-      if(b.id==='emsQcPassed')return await simpleAction(c,'Confirm final QC has passed?',{qc_passed_at:'$NOW',qc_passed_by:'$USER',current_step:10,current_step_started_at:'$NOW'});
-      if(b.id==='emsHandFrontOffice')return await simpleAction(c,'Confirm the Job Card has been handed to Front Office?',{job_card_handed_front_office_at:'$NOW',job_card_handed_front_office_by:'$USER',current_step:11,current_step_started_at:'$NOW'});
-      if(b.id==='emsAcceptFrontOffice')return await simpleAction(c,'Confirm Front Office accepts the Job Card?',{job_card_accepted_front_office_at:'$NOW',job_card_accepted_front_office_by:'$USER',current_step:12,current_step_started_at:'$NOW'});
-      if(b.id==='emsConfirmInvoice'){const no=document.getElementById('emsInvoiceNumber')?.value.trim();if(!no){b.disabled=false;return alert('Please enter the invoice number.');}return await simpleAction(c,`Confirm invoice ${no}?`,{invoice_number:no,invoiced_at:'$NOW',invoiced_by:'$USER',current_step:13,current_step_started_at:'$NOW'});}
-      if(b.id==='emsReleaseVehicle')return await simpleAction(c,'Confirm the vehicle has been released?',{vehicle_released_at:'$NOW',vehicle_released_by:'$USER',current_step:14,current_step_started_at:'$NOW',workflow_status:'Released'});
-      if(b.id==='emsCompleteCase'){
-        const file=document.getElementById('emsInvoiceProof')?.files?.[0];if(!file){b.disabled=false;return alert('Please attach the signed invoice or official proof first.');}
-        if(!confirm('Attach this proof and mark the EMS case Completed?')){b.disabled=false;return;}
-        const u=await signedUser(),now=new Date().toISOString(),safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_'),path=`${c.id}/${Date.now()}-${safe}`;
-        const{error}=await supabaseClient.storage.from('ems-documents').upload(path,file,{upsert:false,contentType:file.type||undefined});if(error)throw error;
-        await updateCase(c,{invoice_proof_path:path,invoice_signed_at:now,invoice_signed_by:u.id,current_step:14,current_step_started_at:now,workflow_status:'Completed',completed_at:now,completed_by:u.id});
+      if (Array.isArray(emsCases)) {
+        const i = emsCases.findIndex(x => String(x.id) === String(data.id));
+        if (i >= 0) emsCases[i] = data;
       }
-    } catch(e){console.error('EMS completion action failed:',e);alert('EMS action could not be completed.\n\n'+(e.message||'Unknown error'));b.disabled=false;}
-  },true);
+    } catch (_) {}
+  }
 
-  /* Restore 9-14 only when another renderer has actually removed them. Do not react to our own insertions. */
-  const observer=new MutationObserver(mutations=>{
-    if(rendering)return;
-    const host=document.getElementById('emsPhase3Steps');
-    const section=document.getElementById('emsPhase3Workflow');
-    if(!host||!section||section.classList.contains('hidden'))return;
-    if(host.querySelector('[data-ems-completion-step]'))return;
-    const touched=mutations.some(m=>m.target===host||m.target?.closest?.('#emsPhase3Steps'));
-    if(touched)scheduleRender(10);
+  async function updateCase(c, changes) {
+    const payload = { ...changes, updated_at: new Date().toISOString() };
+    const { data, error } = await supabaseClient.from('ems_cases').update(payload).eq('id', c.id).select().single();
+    if (error) throw error;
+    syncCaseLocally(data);
+    await renderCompletionSteps();
+    return data;
+  }
+
+  async function simpleAction(c, promptText, changes) {
+    if (!confirm(promptText)) return false;
+    const u = await signedUser();
+    const now = new Date().toISOString();
+    const resolved = {};
+    Object.entries(changes).forEach(([k,v]) => resolved[k] = v === '$NOW' ? now : v === '$USER' ? u.id : v);
+    await updateCase(c, resolved);
+    return true;
+  }
+
+  document.addEventListener('click', async event => {
+    const b = event.target.closest('#emsQcPassed,#emsHandFrontOffice,#emsAcceptFrontOffice,#emsConfirmInvoice,#emsReleaseVehicle,#emsCompleteCase');
+    if (!b) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const c = selectedCase();
+    if (!c) return alert('The open EMS vehicle could not be resolved. Please close and reopen it.');
+    const originalText = b.textContent;
+    try {
+      b.disabled = true;
+      b.textContent = 'Saving...';
+      let completed = false;
+      if (b.id === 'emsQcPassed') completed = await simpleAction(c,'Confirm final QC has passed?',{qc_passed_at:'$NOW',qc_passed_by:'$USER',current_step:10,current_step_started_at:'$NOW'});
+      else if (b.id === 'emsHandFrontOffice') completed = await simpleAction(c,'Confirm the Job Card has been handed to Front Office?',{job_card_handed_front_office_at:'$NOW',job_card_handed_front_office_by:'$USER',current_step:11,current_step_started_at:'$NOW'});
+      else if (b.id === 'emsAcceptFrontOffice') completed = await simpleAction(c,'Confirm Front Office accepts the Job Card?',{job_card_accepted_front_office_at:'$NOW',job_card_accepted_front_office_by:'$USER',current_step:12,current_step_started_at:'$NOW'});
+      else if (b.id === 'emsConfirmInvoice') {
+        const no = document.getElementById('emsInvoiceNumber')?.value.trim();
+        if (!no) { b.disabled=false; b.textContent=originalText; return alert('Please enter the invoice number.'); }
+        completed = await simpleAction(c,`Confirm invoice ${no}?`,{invoice_number:no,invoiced_at:'$NOW',invoiced_by:'$USER',current_step:13,current_step_started_at:'$NOW'});
+      } else if (b.id === 'emsReleaseVehicle') completed = await simpleAction(c,'Confirm the vehicle has been released?',{vehicle_released_at:'$NOW',vehicle_released_by:'$USER',current_step:14,current_step_started_at:'$NOW',workflow_status:'Released'});
+      else if (b.id === 'emsCompleteCase') {
+        const file = document.getElementById('emsInvoiceProof')?.files?.[0];
+        if (!file) { b.disabled=false; b.textContent=originalText; return alert('Please attach the signed invoice or official proof first.'); }
+        if (!confirm('Attach this proof and mark the EMS case Completed?')) { b.disabled=false; b.textContent=originalText; return; }
+        const u=await signedUser(), now=new Date().toISOString(), safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_'), path=`${c.id}/${Date.now()}-${safe}`;
+        const { error } = await supabaseClient.storage.from('ems-documents').upload(path,file,{upsert:false,contentType:file.type||undefined});
+        if (error) throw error;
+        await updateCase(c,{invoice_proof_path:path,invoice_signed_at:now,invoice_signed_by:u.id,current_step:14,current_step_started_at:now,workflow_status:'Completed',completed_at:now,completed_by:u.id});
+        completed = true;
+      }
+      if (!completed && document.body.contains(b)) { b.disabled=false; b.textContent=originalText; }
+    } catch(e) {
+      console.error('EMS completion action failed:',e);
+      alert('EMS action could not be completed.\n\n'+(e.message||'Unknown error'));
+      if (document.body.contains(b)) { b.disabled=false; b.textContent=originalText; }
+    }
+  }, true);
+
+  /* Only restore the protected completion host if another renderer removes it. */
+  const observer = new MutationObserver(() => {
+    if (rendering) return;
+    const section = document.getElementById('emsPhase3Workflow');
+    if (!section || section.classList.contains('hidden')) return;
+    const host = document.getElementById('emsPhase3CompletionSteps');
+    if (!host || !host.querySelector('[data-ems-completion-step]')) scheduleRender(30);
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
 
-  window.renderEmsCompletionSteps=renderCompletionSteps;
+  window.renderEmsCompletionSteps = renderCompletionSteps;
   window.addEventListener('load',()=>scheduleRender(50));
   scheduleRender(50);
 })();
