@@ -1125,8 +1125,8 @@ if (confirmEmsJobCardButton) {
 document.addEventListener('click', async (event) => {
 
     const confirmForemanJobCardButton =
-        event.target.closest('#confirmForemanJobCardButton');
-
+       event.target.closest('#confirmEmsForemanReceivedButton');
+       
     if (!confirmForemanJobCardButton) return;
         if (!emsSelectedCase) {
             alert('No EMS vehicle selected.');
