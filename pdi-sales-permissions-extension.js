@@ -84,38 +84,28 @@
         );
     }
 
-    function hideElementById(id) {
-        const element = document.getElementById(id);
+    function markAndHideElement(element) {
         if (!element) return;
 
+        // Do nothing when this element has already been secured. This is
+        // important because the page renders workflow content dynamically.
+        if (element.dataset.salesPermissionHidden === 'true') {
+            return;
+        }
+
+        element.dataset.salesPermissionHidden = 'true';
         element.hidden = true;
         element.classList.add('hidden');
         element.style.setProperty('display', 'none', 'important');
         element.setAttribute('aria-hidden', 'true');
     }
 
-    function restoreElementDisplay(id) {
-        const element = document.getElementById(id);
-        if (!element) return;
-
-        // Only remove the hard override added by this extension.
-        if (element.dataset.salesPermissionHidden === 'true') {
-            element.style.removeProperty('display');
-            element.removeAttribute('aria-hidden');
-            delete element.dataset.salesPermissionHidden;
-        }
-    }
-
     function markAndHide(id) {
-        const element = document.getElementById(id);
-        if (!element) return;
-        element.dataset.salesPermissionHidden = 'true';
-        hideElementById(id);
+        markAndHideElement(document.getElementById(id));
     }
 
     function applySalesPersonPermissions() {
         if (!isSalesPersonOnlyProfile()) {
-            SALES_ONLY_HIDDEN_IDS.forEach(restoreElementDisplay);
             return;
         }
 
@@ -124,18 +114,10 @@
         // These sections do not currently have stable IDs, so locate them
         // through their known controls and hide only the admin container.
         const savePreArrival = document.getElementById('savePreArrivalOrderBtn');
-        const preArrivalSection = savePreArrival?.closest('section');
-        if (preArrivalSection) {
-            preArrivalSection.dataset.salesPermissionHidden = 'true';
-            preArrivalSection.style.setProperty('display', 'none', 'important');
-        }
+        markAndHideElement(savePreArrival?.closest('section'));
 
         const exportButton = document.getElementById('exportActiveVehiclesButton');
-        const reportsSection = exportButton?.closest('section');
-        if (reportsSection) {
-            reportsSection.dataset.salesPermissionHidden = 'true';
-            reportsSection.style.setProperty('display', 'none', 'important');
-        }
+        markAndHideElement(exportButton?.closest('section'));
 
         // Bodybuilder administration is visible for reference, but its
         // mutation controls are not available to Sales Person users.
@@ -144,8 +126,6 @@
             'bodybuilderCheckoutBtn',
             'bodybuilderReturnBtn'
         ].forEach(markAndHide);
-
-        console.log('Sales Person PDI permissions applied.');
     }
 
     // Capture-phase guard: even if another script makes a restricted
@@ -170,11 +150,25 @@
         true
     );
 
-    // Re-apply after dynamic workflow rendering and authentication updates.
-    const observer = new MutationObserver(() => {
-        if (isSalesPersonOnlyProfile()) {
+    // Only watch for newly rendered DOM nodes. Watching style/class/hidden
+    // attributes caused the previous guard to observe its own changes and
+    // repeatedly call itself, which could make Chrome report the page as
+    // unresponsive.
+    let applyScheduled = false;
+    const observer = new MutationObserver(mutations => {
+        if (!isSalesPersonOnlyProfile()) return;
+
+        const hasAddedNodes = mutations.some(
+            mutation => mutation.addedNodes && mutation.addedNodes.length > 0
+        );
+
+        if (!hasAddedNodes || applyScheduled) return;
+
+        applyScheduled = true;
+        window.requestAnimationFrame(() => {
+            applyScheduled = false;
             applySalesPersonPermissions();
-        }
+        });
     });
 
     function startPermissionGuard() {
@@ -182,13 +176,11 @@
 
         observer.observe(document.body, {
             childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['class', 'hidden', 'style']
+            subtree: true
         });
 
-        // Authentication/profile loading is asynchronous. This short-lived
-        // retry window catches restored sessions and fresh logins.
+        // Authentication/profile loading is asynchronous. Keep this retry
+        // window short and bounded; it stops automatically after 10 seconds.
         let attempts = 0;
         const timer = setInterval(() => {
             attempts += 1;
@@ -198,10 +190,14 @@
                 clearInterval(timer);
             }
         }, 500);
+
+        console.log('Sales Person PDI permission guard ready.');
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', startPermissionGuard);
+        document.addEventListener('DOMContentLoaded', startPermissionGuard, {
+            once: true
+        });
     } else {
         startPermissionGuard();
     }
