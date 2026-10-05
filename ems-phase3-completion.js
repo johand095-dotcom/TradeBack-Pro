@@ -147,13 +147,15 @@
     } catch(e){console.error('EMS completion action failed:',e);alert('EMS action could not be completed.\n\n'+(e.message||'Unknown error'));b.disabled=false;}
   },true);
 
-  /* One owner for persistence: whenever the Phase 1-8 renderer replaces the shared host, restore 9-14 immediately. */
+  /* Restore 9-14 only when another renderer has actually removed them. Do not react to our own insertions. */
   const observer=new MutationObserver(mutations=>{
     if(rendering)return;
-    for(const m of mutations){
-      const target=m.target;
-      if(target && (target.id==='emsPhase3Steps' || target.closest?.('#emsPhase3Steps'))){scheduleRender(20);break;}
-    }
+    const host=document.getElementById('emsPhase3Steps');
+    const section=document.getElementById('emsPhase3Workflow');
+    if(!host||!section||section.classList.contains('hidden'))return;
+    if(host.querySelector('[data-ems-completion-step]'))return;
+    const touched=mutations.some(m=>m.target===host||m.target?.closest?.('#emsPhase3Steps'));
+    if(touched)scheduleRender(10);
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
 
