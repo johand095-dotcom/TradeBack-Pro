@@ -29,7 +29,7 @@ const supabaseClient =
     SUPABASE_URL,
     SUPABASE_KEY
   );
-
+window.supabaseClient = supabaseClient;
 
 /* =========================================================
    APPLICATION STATE
@@ -780,6 +780,42 @@ async function loadPdiStepTemplates() {
         pdiStepTemplates
     );
 }
+
+function isSalesPersonOnly() {
+    if (!pdiUserProfile) {
+        return false;
+    }
+
+    let roles = pdiUserProfile.roles || [];
+
+    // Supabase may return roles as a JSON string
+    if (typeof roles === 'string') {
+        try {
+            roles = JSON.parse(roles);
+        } catch (error) {
+            roles = roles
+                .replace(/[\[\]"]/g, '')
+                .split(',')
+                .map(role => role.trim());
+        }
+    }
+
+    if (!Array.isArray(roles)) {
+        roles = [roles];
+    }
+
+    const normalisedRoles = roles.map(
+        role => String(role).trim().toLowerCase()
+    );
+
+    return (
+        normalisedRoles.includes('sales person') &&
+        !normalisedRoles.includes('admin manager') &&
+        !normalisedRoles.includes('pdi admin') &&
+        !normalisedRoles.includes('pdi controller')
+    );
+}
+
 async function loadPdiCases() {
 
     if (!pdiSession) {
@@ -812,6 +848,8 @@ order_reference,
 oem_eta,
 stock_classification,
 allocated_customer,
+allocated_salesperson_id,
+allocated_salesperson_name,
 ordered_at,
 received_at,
         workflow_status,
@@ -1078,6 +1116,31 @@ if (!canLoadPreArrival) {
                     )
                     ?.value
                     .trim();
+                   const stockNo =
+    document
+        .getElementById(
+            'preArrivalStockNo'
+        )
+        ?.value
+        .trim() || '';
+
+const salespersonSelect =
+    document.getElementById(
+        'preArrivalSalesperson'
+    );
+
+const allocatedSalespersonId =
+    salespersonSelect?.value || '';
+
+const allocatedSalespersonName =
+    allocatedSalespersonId
+        ? salespersonSelect
+            ?.options[
+                salespersonSelect.selectedIndex
+            ]
+            ?.text
+            ?.trim() || ''
+        : ''; 
 
             const orderReference =
                 document
@@ -1154,11 +1217,18 @@ const allocatedCustomer =
                             receiving_no:
                                 null,
 
-                            stock_no:
-                                 null,
+                           stock_no:
+    stockNo || null,
 
-                            vin:
-                                vin || null,
+vin:
+    vin || null,
+
+allocated_salesperson_id:
+    allocatedSalespersonId || null,
+
+allocated_salesperson_name:
+    allocatedSalespersonName || null,
+
                             oem_supplier:
                                 supplier,  
 
@@ -1199,6 +1269,11 @@ allocated_customer:
     classification === 'Allocated'
         ? allocatedCustomer
         : null,
+ allocated_salesperson_id:
+    allocatedSalespersonId || null,
+
+allocated_salesperson_name:
+    allocatedSalespersonName || null,
 
 ordered_at:
     now 
@@ -1283,7 +1358,6 @@ ordered_at:
         };
 }
 
-function renderPdiDashboard() {
 
   const activeCases =
     pdiCases.filter(
@@ -1648,12 +1722,22 @@ ${
                         Allocated
                     </span>
                     ${
-                        item.allocated_customer
-                            ? `<div style="margin-top:6px; font-size:12px; font-weight:600;">
-                                Customer: ${item.allocated_customer}
-                               </div>`
-                            : ''
-                    }
+    item.allocated_salesperson_name
+        ? `<div style="margin-top:6px; font-size:12px; font-weight:700;">
+            Salesperson: ${item.allocated_salesperson_name}
+           </div>`
+        : `<div style="margin-top:6px; font-size:12px; font-weight:700;">
+            Salesperson: Unallocated
+           </div>`
+}
+
+${
+    item.allocated_customer
+        ? `<div style="margin-top:3px; font-size:12px; font-weight:600;">
+            Customer: ${item.allocated_customer}
+           </div>`
+        : ''
+}
                 </div>
               `
             : classification === 'Stock'
