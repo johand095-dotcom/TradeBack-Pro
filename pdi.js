@@ -4746,8 +4746,39 @@ function renderPdiWorkflowSteps() {
   phase3.innerHTML = '';
   phase4.innerHTML = '';
 
+  /*
+    Older / pre-arrival PDI records may not yet have their
+    pdi_case_steps rows. Render the master step templates as
+    pending rows so every phase remains visible and reviewable.
+    Once real case-step rows exist they remain the source of truth.
+  */
+  const selectedCase =
+    pdiCases.find(
+      item =>
+        Number(item.id) ===
+        Number(selectedPdiCaseId)
+    );
 
-  selectedPdiSteps.forEach(
+  const workflowSteps =
+    selectedPdiSteps.length
+      ? selectedPdiSteps
+      : (pdiStepTemplates || []).map(
+          template => ({
+            id: null,
+            pdi_case_id: selectedPdiCaseId,
+            step_no: template.step_no,
+            phase_no: template.phase_no,
+            activity: template.activity,
+            responsible_role: template.responsible_role,
+            step_status: 'Pending',
+            completed_by_name: null,
+            completed_at: null,
+            comments: null,
+            template_only: true
+          })
+        );
+
+  workflowSteps.forEach(
     step => {
 
       const html =
@@ -4936,6 +4967,7 @@ if (canReopen) {
     `;
 
 } else if (
+    !step.template_only &&
     isCurrentPhase &&
     !isCompleted &&
     canAction
