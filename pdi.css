@@ -2315,3 +2315,43 @@ padding: 8px 8px;
 .side-nav::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.38);
 }
+
+/* =========================================================
+   PDI UPGRADE - WORKFLOW PHASE ACCORDIONS
+========================================================= */
+#workflowSection .phase-heading {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 52px;
+}
+
+#workflowSection .phase-heading::after {
+  content: '⌃';
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--grey-300);
+  border-radius: 9px;
+  background: var(--white);
+  color: var(--navy);
+  font-weight: 900;
+}
+
+#workflowSection .phase-section.workflow-phase-collapsed > .phase-heading::after {
+  content: '⌄';
+}
+
+#workflowSection .phase-section.workflow-phase-collapsed > .workflow-steps {
+  display: none !important;
+}
+
+#workflowSection .phase-heading:focus-visible {
+  outline: 3px solid rgba(0, 94, 168, 0.18);
+  outline-offset: 3px;
+}
