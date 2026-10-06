@@ -2444,39 +2444,56 @@ async function buildReceivingReport() {
 
 async function generateReceivingReport() {
   if (!validateReceiving()) return;
+
+  /*
+   * Finalise Receiving BEFORE opening the print window.
+   * Printing is presentation only; it must never control workflow state.
+   */
   const {report,metrics}=await buildReceivingReport();
-  const printWindow=window.open('','_blank');
-  if (!printWindow) return alert('Please allow pop-ups for this site and try again.');
-  printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${receivingField('receivingNo')}</title><style>
-    @page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#111827;font-size:12px}.report-header{display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #003b73;padding-bottom:12px;margin-bottom:18px}.report-header h1{margin:0 0 6px;color:#001e3c;font-size:24px}.mini-logo{color:#003b73;font-size:24px;font-weight:900;border:3px solid #003b73;padding:10px;border-radius:8px}h2{color:#001e3c;margin-top:22px;margin-bottom:8px;border-bottom:2px solid #eaf3ff;padding-bottom:6px;page-break-after:avoid}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #9ca3af;padding:7px;text-align:left;vertical-align:top;font-size:10px}th{background:#e8edf5}thead{display:table-header-group}tr,img{page-break-inside:avoid}.report-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.report-photo-card{border:1px solid #cbd5e1;border-radius:6px;padding:6px;break-inside:avoid}.report-photo{display:block;width:100%;height:150px;object-fit:contain;background:#f8fafc}.report-photo-caption{padding-top:5px;font-size:9px}.photo-appendix-heading{page-break-before:always}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-  </style></head><body>${report.innerHTML}</body></html>`);
-  printWindow.document.close();
-const completeRecord = async () => {
-    const fields=collectReceivingFields();
-    const records=getReceivingDatabase();
-    const index=records.findIndex(r=>r.receivingNo===fields.receivingNo);
-    const record={receivingNo:fields.receivingNo,status:'Completed',result:metrics.finalResult,fields,state:receivingState,signature:document.getElementById('receivingSignaturePad').toDataURL(),createdAt:index>=0?records[index].createdAt:new Date().toISOString(),completedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
-    if(index>=0)records[index]=record;else records.push(record);
+  const fields=collectReceivingFields();
+  const records=getReceivingDatabase();
+  const index=records.findIndex(
+    r=>r.receivingNo===fields.receivingNo
+  );
+
+  const record={
+    receivingNo:fields.receivingNo,
+    status:'Completed',
+    result:metrics.finalResult,
+    fields,
+    state:compactReceivingStateForStorage(receivingState),
+    signature:document.getElementById('receivingSignaturePad').toDataURL(),
+    createdAt:index>=0
+      ? records[index].createdAt
+      : new Date().toISOString(),
+    completedAt:new Date().toISOString(),
+    updatedAt:new Date().toISOString()
+  };
+
+  try {
+    if(index>=0) records[index]=record;
+    else records.push(record);
+
     saveReceivingDatabase(records);
 
-    const cloudSaved =
+    const cloudSaved=
       await saveReceivingRecordToCloud(record);
 
-    if (!cloudSaved) {
+    if(!cloudSaved) {
       throw new Error(
         'Receiving completion could not be saved to the cloud.'
       );
     }
 
-    /*
-     * Explicitly hand the completed receiving record to PDI.
-     * Do not depend on a runtime wrapper being installed first.
-     */
-    if (
+    if(
       typeof window.updateLinkedPdiCaseFromReceiving ===
       'function'
-    ) {
+    ){
       await window.updateLinkedPdiCaseFromReceiving(record);
+    } else {
+      throw new Error(
+        'PDI handoff service is not available. Refresh the page and try again.'
+      );
     }
 
     localStorage.setItem(
@@ -2485,9 +2502,51 @@ const completeRecord = async () => {
     );
 
     await syncReceivingDatabaseFromSupabase();
-  };
-  const printWhenReady=()=>Promise.all(Array.from(printWindow.document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;}))).then(async()=>{try{await completeRecord();setTimeout(()=>{printWindow.focus();printWindow.print();},300);}catch(error){console.error('Receiving completion failed:',error);alert('The receiving report was created, but the vehicle could not be moved into PDI. '+(error?.message||'Please try again.'));}});
-  if(printWindow.document.readyState==='complete')printWhenReady();else printWindow.onload=printWhenReady;
+    renderReceivingLibrary();
+    updateReceivingDashboard();
+  } catch(error) {
+    console.error('Receiving completion failed:',error);
+    alert(
+      'The receiving inspection could not be completed and moved into PDI. ' +
+      (error?.message || 'Please try again.')
+    );
+    return;
+  }
+
+  const printWindow=window.open('','_blank');
+  if(!printWindow) {
+    alert(
+      'Receiving is completed and PDI has been updated. Please allow pop-ups to print the report.'
+    );
+    return;
+  }
+
+  printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${receivingField('receivingNo')}</title><style>
+    @page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#111827;font-size:12px}.report-header{display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #003b73;padding-bottom:12px;margin-bottom:18px}.report-header h1{margin:0 0 6px;color:#001e3c;font-size:24px}.mini-logo{color:#003b73;font-size:24px;font-weight:900;border:3px solid #003b73;padding:10px;border-radius:8px}h2{color:#001e3c;margin-top:22px;margin-bottom:8px;border-bottom:2px solid #eaf3ff;padding-bottom:6px;page-break-after:avoid}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #9ca3af;padding:7px;text-align:left;vertical-align:top;font-size:10px}th{background:#e8edf5}thead{display:table-header-group}tr,img{page-break-inside:avoid}.report-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.report-photo-card{border:1px solid #cbd5e1;border-radius:6px;padding:6px;break-inside:avoid}.report-photo{display:block;width:100%;height:150px;object-fit:contain;background:#f8fafc}.report-photo-caption{padding-top:5px;font-size:9px}.photo-appendix-heading{page-break-before:always}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  </style></head><body>${report.innerHTML}</body></html>`);
+  printWindow.document.close();
+
+  const printWhenReady=()=>Promise.all(
+    Array.from(printWindow.document.images).map(
+      img=>img.complete
+        ? Promise.resolve()
+        : new Promise(resolve=>{
+            img.onload=resolve;
+            img.onerror=resolve;
+          })
+    )
+  ).then(()=>{
+    setTimeout(()=>{
+      printWindow.focus();
+      printWindow.print();
+    },300);
+  });
+
+  if(printWindow.document.readyState==='complete') {
+    printWhenReady();
+  } else {
+    printWindow.onload=printWhenReady;
+  }
 }
 
 function emailReceivingReport() {
