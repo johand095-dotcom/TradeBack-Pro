@@ -2355,3 +2355,69 @@ padding: 8px 8px;
   outline: 3px solid rgba(0, 94, 168, 0.18);
   outline-offset: 3px;
 }
+
+
+/* =========================================================
+   PDI UPGRADE - GLOBAL SEARCH
+========================================================= */
+.pdi-global-search-card {
+  position: relative;
+  overflow: visible;
+}
+
+.pdi-global-search-wrap {
+  position: relative;
+}
+
+#pdiGlobalSearch {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid var(--grey-300);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.pdi-global-search-results {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 420px;
+  overflow: auto;
+  background: var(--white);
+  border: 1px solid var(--grey-300);
+  border-radius: 12px;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
+}
+
+.pdi-global-search-result {
+  width: 100%;
+  display: grid;
+  gap: 3px;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--grey-200);
+  background: var(--white);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pdi-global-search-result:hover {
+  background: var(--grey-50);
+}
+
+.pdi-global-search-result strong {
+  color: var(--navy);
+}
+
+.pdi-global-search-result span,
+.pdi-global-search-empty {
+  color: var(--grey-600);
+  font-size: 0.9rem;
+}
+
+.pdi-global-search-empty {
+  padding: 16px;
+}
