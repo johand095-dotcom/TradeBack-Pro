@@ -2442,9 +2442,9 @@ async function buildReceivingReport() {
   return {report,metrics};
 }
 
-function generateReceivingReport() {
+async function generateReceivingReport() {
   if (!validateReceiving()) return;
-  const {report,metrics}=buildReceivingReport();
+  const {report,metrics}=await buildReceivingReport();
   const printWindow=window.open('','_blank');
   if (!printWindow) return alert('Please allow pop-ups for this site and try again.');
   printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${receivingField('receivingNo')}</title><style>
@@ -2457,17 +2457,36 @@ const completeRecord = async () => {
     const index=records.findIndex(r=>r.receivingNo===fields.receivingNo);
     const record={receivingNo:fields.receivingNo,status:'Completed',result:metrics.finalResult,fields,state:receivingState,signature:document.getElementById('receivingSignaturePad').toDataURL(),createdAt:index>=0?records[index].createdAt:new Date().toISOString(),completedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
     if(index>=0)records[index]=record;else records.push(record);
-    saveReceivingDatabase(records);saveReceivingDatabase(records);
-    await saveReceivingRecordToCloud(record);
-  
-localStorage.setItem(
-  RECEIVING_DRAFT_KEY,
-  record.receivingNo
-);
+    saveReceivingDatabase(records);
 
-await syncReceivingDatabaseFromSupabase();
+    const cloudSaved =
+      await saveReceivingRecordToCloud(record);
+
+    if (!cloudSaved) {
+      throw new Error(
+        'Receiving completion could not be saved to the cloud.'
+      );
+    }
+
+    /*
+     * Explicitly hand the completed receiving record to PDI.
+     * Do not depend on a runtime wrapper being installed first.
+     */
+    if (
+      typeof window.updateLinkedPdiCaseFromReceiving ===
+      'function'
+    ) {
+      await window.updateLinkedPdiCaseFromReceiving(record);
+    }
+
+    localStorage.setItem(
+      RECEIVING_DRAFT_KEY,
+      record.receivingNo
+    );
+
+    await syncReceivingDatabaseFromSupabase();
   };
-  const printWhenReady=()=>Promise.all(Array.from(printWindow.document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;}))).then(()=>{completeRecord();setTimeout(()=>{printWindow.focus();printWindow.print();},300);});
+  const printWhenReady=()=>Promise.all(Array.from(printWindow.document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;}))).then(async()=>{try{await completeRecord();setTimeout(()=>{printWindow.focus();printWindow.print();},300);}catch(error){console.error('Receiving completion failed:',error);alert('The receiving report was created, but the vehicle could not be moved into PDI. '+(error?.message||'Please try again.'));}});
   if(printWindow.document.readyState==='complete')printWhenReady();else printWindow.onload=printWhenReady;
 }
 
