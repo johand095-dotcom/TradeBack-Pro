@@ -2939,6 +2939,10 @@ initialiseBodybuilderPhase(
       'hidden'
     );
 
+  initialiseWorkflowPhaseAccordions(
+    selectedCase
+  );
+
 
   document
     .getElementById(
@@ -3713,6 +3717,7 @@ const returnButton =
             supplier_name,
             body_description,
             estimated_days,
+            started_at,
             status,
             checkout_at,
             returned_at
@@ -3782,6 +3787,18 @@ if (existingVisit) {
             .value =
                 existingVisit.estimated_days ||
                 '';
+
+        const bodybuilderStartDate =
+            document.getElementById(
+                'bodybuilderStartDate'
+            );
+
+        if (bodybuilderStartDate) {
+            bodybuilderStartDate.value =
+                existingVisit.started_at
+                    ? String(existingVisit.started_at).slice(0, 10)
+                    : '';
+        }
 
         status.textContent =
             existingVisit.status ||
@@ -4372,150 +4389,218 @@ if (
 
 saveButton.onclick = async function () {
 
-        const decision =
-            requiredSelect.value;
+        const decision = requiredSelect.value;
 
         if (!decision) {
-
-            alert(
-                'Please select whether a bodybuilder is required.'
-            );
-
+            alert('Please select whether a bodybuilder is required.');
             return;
         }
 
         const supplier =
-            document
-                .getElementById('bodybuilderSupplier')
-                ?.value
-                .trim() || null;
+            document.getElementById('bodybuilderSupplier')
+                ?.value.trim() || null;
 
         const bodyDescription =
-            document
-                .getElementById('bodybuilderDescription')
-                ?.value
-                .trim() || null;
+            document.getElementById('bodybuilderDescription')
+                ?.value.trim() || null;
 
         const estimatedDays =
             Number(
-                document
-                    .getElementById('bodybuilderEstimatedDays')
+                document.getElementById('bodybuilderEstimatedDays')
                     ?.value
             ) || null;
 
+        const startDate =
+            document.getElementById('bodybuilderStartDate')
+                ?.value || null;
+
         if (decision === 'yes') {
-
-            if (
-                !supplier ||
-                !bodyDescription ||
-                !estimatedDays
-            ) {
-
+            if (!supplier || !bodyDescription || !estimatedDays || !startDate) {
                 alert(
-                    'Please enter the supplier, body being fitted and estimated fitment days.'
+                    'Please enter the supplier, body being fitted, estimated fitment days and Bodybuilder Start Date.'
                 );
-
                 return;
             }
         }
 
-        console.log(
-            'Saving bodybuilder decision:',
-            {
-                receivingNo:
-                    selectedCase.receiving_no,
-                decision,
-                supplier,
-                bodyDescription,
-                estimatedDays
+        const bodybuilderRequired = decision === 'yes';
+        const bodybuilderStatus =
+            bodybuilderRequired
+                ? 'Ready for Dispatch'
+                : 'Not Applicable';
+
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving...';
+
+        try {
+            const now = new Date().toISOString();
+
+            const payload = {
+                pdi_case_id: selectedCase.id,
+                receiving_no: selectedCase.receiving_no || null,
+                bodybuilder_required: bodybuilderRequired,
+                supplier_name: bodybuilderRequired ? supplier : null,
+                body_description: bodybuilderRequired ? bodyDescription : null,
+                estimated_days: bodybuilderRequired ? estimatedDays : null,
+                started_at:
+                    bodybuilderRequired && startDate
+                        ? new Date(`${startDate}T00:00:00`).toISOString()
+                        : null,
+                status: bodybuilderStatus,
+                updated_at: now
+            };
+
+            const {
+                data: existingRows,
+                error: existingError
+            } = await supabaseClient
+                .from('pdi_bodybuilder_visits')
+                .select('id')
+                .eq('pdi_case_id', selectedCase.id)
+                .limit(1);
+
+            if (existingError) throw existingError;
+
+            let saveError = null;
+
+            if (existingRows?.length) {
+                const result = await supabaseClient
+                    .from('pdi_bodybuilder_visits')
+                    .update(payload)
+                    .eq('id', existingRows[0].id);
+
+                saveError = result.error;
+            } else {
+                const result = await supabaseClient
+                    .from('pdi_bodybuilder_visits')
+                    .insert(payload);
+
+                saveError = result.error;
             }
+
+            if (saveError) throw saveError;
+
+            status.textContent =
+                bodybuilderRequired
+                    ? 'Ready for Dispatch'
+                    : 'Not Applicable';
+
+            await initialiseBodybuilderPhase(selectedCase);
+
+            alert('Bodybuilder details saved successfully.');
+
+        } catch (error) {
+            console.error(
+                'Could not save bodybuilder details:',
+                error
+            );
+
+            const message =
+                error?.message ||
+                'Unknown database error';
+
+            alert(
+                'Bodybuilder details could not be saved. ' +
+                message
+            );
+        } finally {
+            saveButton.disabled = false;
+            saveButton.textContent = 'Save Bodybuilder Details';
+        }
+    };}
+/* =========================================================
+   WORKFLOW PHASE ACCORDIONS
+   Every phase can be reviewed manually. The phase containing
+   the current workflow step opens automatically.
+========================================================= */
+
+function initialiseWorkflowPhaseAccordions(selectedCase) {
+
+    const workflow =
+        document.getElementById('workflowSection');
+
+    if (!workflow) return;
+
+    const sections =
+        Array.from(
+            workflow.querySelectorAll('.phase-section')
         );
 
-        const bodybuilderRequired =
-    decision === 'yes';
+    sections.forEach((section, index) => {
 
-const bodybuilderStatus =
-    bodybuilderRequired
-        ? 'Ready for Dispatch'
-        : 'Not Applicable';
+        const heading =
+            section.querySelector(':scope > .phase-heading');
 
-const {
-    error: saveError
-} =
-    await supabaseClient
-        .from('pdi_bodybuilder_visits')
-        .upsert(
-            {
-                pdi_case_id:
-                    selectedCase.id,
+        if (!heading) return;
 
-                receiving_no:
-                    selectedCase.receiving_no,
+        if (heading.dataset.phaseAccordionBound !== '1') {
 
-                bodybuilder_required:
-                    bodybuilderRequired,
+            heading.dataset.phaseAccordionBound = '1';
+            heading.setAttribute('role', 'button');
+            heading.setAttribute('tabindex', '0');
 
-                supplier_name:
-                    bodybuilderRequired
-                        ? supplier
-                        : null,
+            const toggle = () => {
+                section.classList.toggle(
+                    'workflow-phase-collapsed'
+                );
 
-                body_description:
-                    bodybuilderRequired
-                        ? bodyDescription
-                        : null,
+                heading.setAttribute(
+                    'aria-expanded',
+                    String(
+                        !section.classList.contains(
+                            'workflow-phase-collapsed'
+                        )
+                    )
+                );
+            };
 
-                estimated_days:
-                    bodybuilderRequired
-                        ? estimatedDays
-                        : null,
+            heading.addEventListener('click', toggle);
 
-                status:
-                    bodybuilderStatus,
+            heading.addEventListener(
+                'keydown',
+                event => {
+                    if (
+                        event.key === 'Enter' ||
+                        event.key === ' '
+                    ) {
+                        event.preventDefault();
+                        toggle();
+                    }
+                }
+            );
+        }
 
-                updated_at:
-                    new Date().toISOString()
-            },
-            {
-                onConflict:
-                    'pdi_case_id'
-            }
+        section.classList.add(
+            'workflow-phase-collapsed'
         );
 
-if (saveError) {
+        heading.setAttribute(
+            'aria-expanded',
+            'false'
+        );
 
-    console.error(
-        'Could not save bodybuilder details:',
-        saveError
-    );
+        const dbPhase =
+            Number(selectedCase?.current_phase || 0);
 
-    alert(
-        'Bodybuilder details could not be saved.'
-    );
+        const shouldOpen =
+            (dbPhase <= 1 && index === 0) ||
+            (dbPhase === 2 && index === 2) ||
+            (dbPhase === 3 && index === 3) ||
+            (dbPhase >= 4 && index === 4);
 
-    return;
+        if (shouldOpen) {
+            section.classList.remove(
+                'workflow-phase-collapsed'
+            );
+
+            heading.setAttribute(
+                'aria-expanded',
+                'true'
+            );
+        }
+    });
 }
-if (decision === 'yes') {
 
-    status.textContent =
-        'Ready for Dispatch';
-
-} else {
-
-    status.textContent =
-        'Not Applicable';
-}
-
-await initialiseBodybuilderPhase(
-    selectedCase
-);
-
-alert(
-    'Bodybuilder details saved successfully.'
-);
-
-};
-}
 /* =========================================================
    CLOSE WORKFLOW
 ========================================================= */
