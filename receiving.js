@@ -2208,7 +2208,7 @@ function loadLatestReceivingDraft() {
 }
 
 function openReceiving(receivingNo) {
- const record = getAllReceivingRecords()(r => r.receivingNo === receivingNo);
+ const record = getAllReceivingRecords().find(r => r.receivingNo === receivingNo);
   if (!record) return alert('Receiving record not found.');
   loadReceivingRecord(record);
 }
@@ -2445,8 +2445,18 @@ async function buildReceivingReport() {
 async function generateReceivingReport() {
   if (!validateReceiving()) return;
 
+  // Open immediately while we are still inside the user's click event.
+  // After awaiting cloud saves Chrome may block window.open as a popup.
+  const printWindow=window.open('','_blank');
+  if(!printWindow) {
+    alert('Please allow pop-ups for this site so the PDF report can open.');
+    return;
+  }
+  printWindow.document.write('<!DOCTYPE html><html><head><title>Preparing Receiving Report...</title></head><body style="font-family:Arial,sans-serif;padding:32px"><h2>Preparing Receiving Report...</h2><p>Please wait while the receiving record is finalised.</p></body></html>');
+  printWindow.document.close();
+
   /*
-   * Finalise Receiving BEFORE opening the print window.
+   * Finalise Receiving BEFORE rendering the report.
    * Printing is presentation only; it must never control workflow state.
    */
   const {report,metrics}=await buildReceivingReport();
@@ -2506,6 +2516,7 @@ async function generateReceivingReport() {
     updateReceivingDashboard();
   } catch(error) {
     console.error('Receiving completion failed:',error);
+    try { printWindow.close(); } catch (_) {}
     alert(
       'The receiving inspection could not be completed and moved into PDI. ' +
       (error?.message || 'Please try again.')
@@ -2513,14 +2524,7 @@ async function generateReceivingReport() {
     return;
   }
 
-  const printWindow=window.open('','_blank');
-  if(!printWindow) {
-    alert(
-      'Receiving is completed and PDI has been updated. Please allow pop-ups to print the report.'
-    );
-    return;
-  }
-
+  printWindow.document.open();
   printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${receivingField('receivingNo')}</title><style>
     @page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#111827;font-size:12px}.report-header{display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #003b73;padding-bottom:12px;margin-bottom:18px}.report-header h1{margin:0 0 6px;color:#001e3c;font-size:24px}.mini-logo{color:#003b73;font-size:24px;font-weight:900;border:3px solid #003b73;padding:10px;border-radius:8px}h2{color:#001e3c;margin-top:22px;margin-bottom:8px;border-bottom:2px solid #eaf3ff;padding-bottom:6px;page-break-after:avoid}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #9ca3af;padding:7px;text-align:left;vertical-align:top;font-size:10px}th{background:#e8edf5}thead{display:table-header-group}tr,img{page-break-inside:avoid}.report-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.report-photo-card{border:1px solid #cbd5e1;border-radius:6px;padding:6px;break-inside:avoid}.report-photo{display:block;width:100%;height:150px;object-fit:contain;background:#f8fafc}.report-photo-caption{padding-top:5px;font-size:9px}.photo-appendix-heading{page-break-before:always}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style></head><body>${report.innerHTML}</body></html>`);
