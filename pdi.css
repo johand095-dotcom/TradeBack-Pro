@@ -2421,3 +2421,10 @@ padding: 8px 8px;
 .pdi-global-search-empty {
   padding: 16px;
 }
+
+
+/* PDI upgrade - attachments and delivery evidence */
+#stepSalesAttachmentWrap { margin-top: 16px; }
+#stepSalesAttachmentWrap input[type="file"],
+.delivery-section input[type="file"] { width: 100%; margin: 7px 0 10px; }
+.workflow-step-attachment { display:inline-flex; align-items:center; gap:5px; font-size:.86rem; color:var(--grey-600); }
