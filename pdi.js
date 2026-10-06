@@ -896,6 +896,7 @@ initialisePreArrivalOrderForm();
 
   renderPdiArchive();
 await renderMyPdiActions();
+initialisePdiGlobalSearch();
 }
 
 
@@ -1022,6 +1023,119 @@ caseRecord.current_step_target_hours =
 
 
 /* =========================================================
+   GLOBAL PDI SEARCH
+========================================================= */
+
+function initialisePdiGlobalSearch() {
+
+  const input =
+    document.getElementById('pdiGlobalSearch');
+
+  const results =
+    document.getElementById('pdiGlobalSearchResults');
+
+  if (!input || !results || input.dataset.bound === 'true') {
+    return;
+  }
+
+  input.dataset.bound = 'true';
+
+  const closeResults = () => {
+    results.classList.add('hidden');
+    results.innerHTML = '';
+  };
+
+  input.addEventListener('input', () => {
+
+    const query =
+      input.value.trim().toLowerCase();
+
+    if (!query) {
+      closeResults();
+      return;
+    }
+
+    const matches =
+      (pdiCases || [])
+        .filter(item => {
+          const haystack = [
+            item.vin,
+            item.stock_no,
+            item.receiving_no
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+          return haystack.includes(query);
+        })
+        .slice(0, 20);
+
+    if (!matches.length) {
+      results.innerHTML =
+        '<div class="pdi-global-search-empty">No matching PDI vehicle found.</div>';
+      results.classList.remove('hidden');
+      return;
+    }
+
+    results.innerHTML =
+      matches.map(item => {
+        const vehicle =
+          [item.make, item.model]
+            .filter(Boolean)
+            .join(' ') || '-';
+
+        return `
+          <button
+            type="button"
+            class="pdi-global-search-result"
+            data-case-id="${item.id}"
+          >
+            <strong>${escapePdiHtml(item.vin || 'VIN not captured')}</strong>
+            <span>${escapePdiHtml(item.stock_no || 'No stock no.')} · ${escapePdiHtml(vehicle)}</span>
+            <span>${escapePdiHtml(item.receiving_no || 'Not yet received')} · ${escapePdiHtml(item.workflow_status || item.order_status || '-')}</span>
+          </button>
+        `;
+      }).join('');
+
+    results.classList.remove('hidden');
+  });
+
+  results.addEventListener('click', event => {
+    const button =
+      event.target.closest('.pdi-global-search-result');
+
+    if (!button) return;
+
+    const caseId =
+      Number(button.dataset.caseId);
+
+    closeResults();
+    input.value = '';
+
+    if (caseId && typeof openPdiWorkflow === 'function') {
+      openPdiWorkflow(caseId);
+
+      document
+        .getElementById('workflowSection')
+        ?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+    }
+  });
+
+  document.addEventListener('click', event => {
+    if (
+      !results.contains(event.target) &&
+      event.target !== input
+    ) {
+      closeResults();
+    }
+  });
+}
+
+/* =========================================================
    DASHBOARD METRICS
 ========================================================= */
 
@@ -1129,11 +1243,16 @@ const salespersonSelect =
         'preArrivalSalesperson'
     );
 
-const allocatedSalespersonId =
+const allocatedSalespersonRaw =
     salespersonSelect?.value || '';
 
+const allocatedSalespersonId =
+    allocatedSalespersonRaw === '__house_deals__'
+        ? ''
+        : allocatedSalespersonRaw;
+
 const allocatedSalespersonName =
-    allocatedSalespersonId
+    allocatedSalespersonRaw
         ? salespersonSelect
             ?.options[
                 salespersonSelect.selectedIndex
