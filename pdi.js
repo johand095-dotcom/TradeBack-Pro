@@ -4775,6 +4775,9 @@ async function loadPdiWorkflowSteps(caseId) {
         completed_by_name,
         completed_at,
         comments,
+        attachment_url,
+        attachment_name,
+        attachment_required,
  reopened_by,
 reopened_by_name,
 reopened_at,
@@ -5036,6 +5039,11 @@ function buildPdiStepHtml(step) {
       `
       : '';
 
+const stepAttachmentHtml =
+    step.attachment_url
+        ? `<span class="workflow-step-attachment">📎 ${escapePdiHtml(step.attachment_name || 'Attachment')}</span>`
+        : '';
+
 const reopenAuditHtml =
     step.reopened_at
         ? `
@@ -5155,6 +5163,7 @@ if (canReopen) {
         </strong>
 
         ${completedDetail}
+        ${stepAttachmentHtml}
 
 ${reopenAuditHtml}
 
@@ -5422,6 +5431,16 @@ function openDigitalDeliveryNoteModal(stepRecord) {
 
             </div>
 
+            <div class="delivery-section">
+                <h4>Delivery Evidence</h4>
+                <label>Manual Delivery Checksheet (optional)</label>
+                <input type="file" id="manualDeliveryChecksheet" accept=".pdf,.jpg,.jpeg,.png" />
+                <small>Use this when delivery is performed by a driver without the salesperson present.</small>
+                <label>Delivery Photo</label>
+                <input type="file" id="deliveryPhoto" accept="image/*" capture="environment" required />
+                <small>One delivery photo is required.</small>
+            </div>
+
             <div
                 class="delivery-section"
                 id="deliveryChecklistSection"
@@ -5528,14 +5547,18 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                         )
                         .value;
 
+                const deliveryPhotoFile =
+                    document.getElementById('deliveryPhoto')?.files?.[0] || null;
+
                 if (
                     !customerName ||
                     !responsiblePerson ||
                     !mileage ||
-                    !deliveryDate
+                    !deliveryDate ||
+                    !deliveryPhotoFile
                 ) {
                     message.textContent =
-                        'Please complete all required delivery details.';
+                        'Please complete all required delivery details and attach one delivery photo.';
 
                     return;
                 }
@@ -5554,7 +5577,7 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                         'Key - Spare Key',
                         'Jack - Tools - Service Manual',
                         'Spare Wheel',
-                        '2 Day Temporary Permit',
+                        '21 day permit',
                         'Vehicle Comprehensive Insurance',
                         'Seats',
                         'Safety Belts',
@@ -5570,7 +5593,10 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                         'Chips on Window',
                         'Door Handles / Locks',
                         'Fuel Tank Caps',
-                        'Tyre Pressure'
+                        'Tyre Pressure',
+                        'Warranty explained',
+                        'Service interval explained',
+                        'Driver training offered'
                     ];
 
                     checklistContainer.innerHTML =
@@ -5603,6 +5629,14 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                                                 value="No"
                                             />
                                             No
+                                        </label>
+                                        <label>
+                                            <input
+                                                type="radio"
+                                                name="deliveryChecklist_${index}"
+                                                value="N.A"
+                                            />
+                                            N.A
                                         </label>
 
                                     </div>
@@ -5637,6 +5671,9 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                         )
                     );
 
+                const manualChecksheetFile =
+                    document.getElementById('manualDeliveryChecksheet')?.files?.[0] || null;
+
                 const incompleteChecklist =
                     checklistRows.some(
                         (row, index) =>
@@ -5645,10 +5682,10 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                             )
                     );
 
-                if (incompleteChecklist) {
+                if (incompleteChecklist && !manualChecksheetFile) {
 
                     message.textContent =
-                        'Please complete every handover checklist item before continuing.';
+                        'Please complete every handover checklist item, or attach the completed manual delivery checksheet.';
 
                     return;
                 }
@@ -5809,13 +5846,17 @@ blankSalesCanvas.height =
 const blankSalesSignature =
     blankSalesCanvas.toDataURL();
 
+const manualChecksheetAttached =
+    Boolean(document.getElementById('manualDeliveryChecksheet')?.files?.[0]);
+
 if (
     customerSignature === blankCustomerSignature ||
-    salesSignature === blankSalesSignature
+    (!manualChecksheetAttached && salesSignature === blankSalesSignature)
 ) {
     message.textContent =
-        'Both customer and Sales Person signatures are required before completing delivery.';
-
+        manualChecksheetAttached
+            ? 'Customer signature is required before completing delivery.'
+            : 'Both customer and Sales Person signatures are required before completing delivery.';
     return;
 }
 
@@ -5899,6 +5940,41 @@ try {
         }
     );
 
+
+    // -----------------------------------------
+    // UPLOAD DELIVERY EVIDENCE
+    // -----------------------------------------
+
+    const uploadDeliveryEvidence = async (file, label) => {
+        if (!file) return null;
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `pdi-cases/${selectedPdiCaseId}/step-44/${label}-${Date.now()}-${safeName}`;
+        const { error } = await supabaseClient.storage
+            .from('bodybuilder-photos')
+            .upload(path, file, {
+                contentType: file.type || 'application/octet-stream',
+                upsert: false
+            });
+        if (error) throw error;
+        return path;
+    };
+
+    const deliveryPhotoPath = await uploadDeliveryEvidence(
+        document.getElementById('deliveryPhoto')?.files?.[0] || null,
+        'delivery-photo'
+    );
+
+    const manualChecksheetPath = await uploadDeliveryEvidence(
+        document.getElementById('manualDeliveryChecksheet')?.files?.[0] || null,
+        'manual-checksheet'
+    );
+
+    checklistData.push({
+        item: 'Delivery Evidence',
+        result: 'Captured',
+        delivery_photo_path: deliveryPhotoPath,
+        manual_checksheet_path: manualChecksheetPath
+    });
 
     // -----------------------------------------
     // SAVE DELIVERY RECEIPT
@@ -6934,6 +7010,19 @@ function openPdiStepModal(stepId) {
       step.comments ||
       '';
 
+  const salesAttachmentWrap =
+    document.getElementById('stepSalesAttachmentWrap');
+
+  const salesAttachmentInput =
+    document.getElementById('stepSalesAttachment');
+
+  const salesAttachmentPhase =
+    [1, 2, 4].includes(Number(step.phase_no));
+
+  salesAttachmentWrap?.classList.toggle('hidden', !salesAttachmentPhase);
+
+  if (salesAttachmentInput) salesAttachmentInput.value = '';
+
 
   document
     .getElementById(
@@ -7045,6 +7134,36 @@ Responsible role: ${selectedPdiStep.responsible_role}`
     const userEmail =
       pdiSession.user.email ||
       'Authenticated User';
+
+const salesAttachmentFile =
+  document.getElementById('stepSalesAttachment')?.files?.[0] || null;
+
+if (salesAttachmentFile && [1, 2, 4].includes(Number(selectedPdiStep.phase_no))) {
+  const safeFileName = salesAttachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const attachmentPath =
+    `pdi-cases/${selectedPdiCaseId}/step-${selectedPdiStep.step_no}/${Date.now()}-${safeFileName}`;
+
+  const { error: uploadError } =
+    await supabaseClient.storage
+      .from('bodybuilder-photos')
+      .upload(attachmentPath, salesAttachmentFile, {
+        contentType: salesAttachmentFile.type || 'application/octet-stream',
+        upsert: false
+      });
+
+  if (uploadError) throw uploadError;
+
+  const { error: evidenceError } =
+    await supabaseClient.rpc('save_pdi_step_response', {
+      target_step_id: selectedPdiStep.id,
+      new_response_value: 'Supporting document attached',
+      new_attachment_url: attachmentPath,
+      new_attachment_name: salesAttachmentFile.name,
+      new_attachment_required: false
+    });
+
+  if (evidenceError) throw evidenceError;
+}
 
 const {
   data,
