@@ -1885,12 +1885,142 @@ ${
     Change
 </button>
 
+${pdiUserProfile?.is_active === true && pdiUserProfile?.is_admin === true ? `
+    <button
+        type="button"
+        class="workflow-action-btn prearrival-historical-complete-btn"
+        data-case-id="${item.id}"
+    >
+        Complete All
+    </button>
+    <button
+        type="button"
+        class="danger-button prearrival-delete-btn"
+        data-case-id="${item.id}"
+    >
+        Delete
+    </button>
+` : ''}
+
     </div>
 </td>              
           </tr>
 `;
 })
 .join('');        
+
+document
+    .querySelectorAll('.prearrival-delete-btn')
+    .forEach(button => {
+        button.onclick = async function () {
+            if (pdiUserProfile?.is_active !== true || pdiUserProfile?.is_admin !== true) {
+                alert('Administrator access is required.');
+                return;
+            }
+
+            const caseId = Number(this.dataset.caseId);
+            const selectedCase = pdiCases.find(item => Number(item.id) === caseId);
+            if (!selectedCase) return;
+
+            const label = [selectedCase.stock_no, selectedCase.vin].filter(Boolean).join(' · ');
+            if (!confirm(
+                'DELETE AWAITING-ARRIVAL VEHICLE?\n\n' +
+                (label || 'Selected vehicle') +
+                '\n\nThis permanently deletes the PDI order record. This cannot be undone.\n\nContinue?'
+            )) return;
+
+            try {
+                this.disabled = true;
+                const { error } = await supabaseClient
+                    .from('pdi_cases')
+                    .delete()
+                    .eq('id', caseId);
+                if (error) throw error;
+                await loadPdiCases();
+                renderPdiDashboard();
+                alert('Awaiting-arrival vehicle deleted successfully.');
+            } catch (error) {
+                console.error('Could not delete awaiting-arrival vehicle:', error);
+                alert('The vehicle could not be deleted.');
+                this.disabled = false;
+            }
+        };
+    });
+
+document
+    .querySelectorAll('.prearrival-historical-complete-btn')
+    .forEach(button => {
+        button.onclick = async function () {
+            if (pdiUserProfile?.is_active !== true || pdiUserProfile?.is_admin !== true) {
+                alert('Administrator access is required.');
+                return;
+            }
+
+            const caseId = Number(this.dataset.caseId);
+            const selectedCase = pdiCases.find(item => Number(item.id) === caseId);
+            if (!selectedCase) return;
+
+            const label = [selectedCase.stock_no, selectedCase.vin].filter(Boolean).join(' · ');
+            if (!confirm(
+                'ADMINISTRATIVE HISTORICAL CLOSE-OUT\n\n' +
+                (label || 'Selected vehicle') +
+                '\n\nThis vehicle is still listed as Awaiting Arrival, but will be treated as historically delivered and closed out. No delivery or warranty evidence will be fabricated.\n\nContinue?'
+            )) return;
+
+            try {
+                this.disabled = true;
+                this.textContent = 'Completing...';
+
+                let { data: steps, error: stepLoadError } = await supabaseClient
+                    .from('pdi_case_steps')
+                    .select('id,step_no,step_status')
+                    .eq('pdi_case_id', caseId)
+                    .order('step_no', { ascending: true });
+
+                if (stepLoadError) throw stepLoadError;
+
+                const auditComment =
+                    'Administrative historical close-out — vehicle already delivered before system workflow was updated. No historical evidence fabricated.';
+
+                for (const step of (steps || []).filter(
+                    row => String(row.step_status || '').toLowerCase() !== 'completed'
+                )) {
+                    const { error } = await supabaseClient.rpc('complete_pdi_step', {
+                        target_step_id: step.id,
+                        step_comments: auditComment
+                    });
+                    if (error) throw new Error(
+                        'Step ' + step.step_no + ' could not be completed: ' +
+                        (error.message || 'Unknown error')
+                    );
+                }
+
+                const now = new Date().toISOString();
+                const { error: closeError } = await supabaseClient
+                    .from('pdi_cases')
+                    .update({
+                        workflow_status: 'Completed',
+                        order_status: 'Completed',
+                        updated_at: now
+                    })
+                    .eq('id', caseId);
+
+                if (closeError) throw closeError;
+
+                await loadPdiCases();
+                renderPdiDashboard();
+                alert('Historical vehicle closed successfully.');
+            } catch (error) {
+                console.error('Could not close awaiting-arrival historical vehicle:', error);
+                alert(
+                    'Historical close-out stopped. ' +
+                    (error?.message || 'Please check the browser console.')
+                );
+                this.disabled = false;
+                this.textContent = 'Complete All';
+            }
+        };
+    });
 
 document
     .querySelectorAll(
