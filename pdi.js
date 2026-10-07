@@ -2000,7 +2000,6 @@ document
                     .from('pdi_cases')
                     .update({
                         workflow_status: 'Completed',
-                        order_status: 'Completed',
                         updated_at: now
                     })
                     .eq('id', caseId);
