@@ -4782,6 +4782,7 @@ reopen_reason
 
   renderPdiWorkflowSteps();
 
+  updateAdminHistoricalCloseoutButton();
 
   return true;
 }
@@ -7209,6 +7210,149 @@ console.log(
   }
 }
 
+
+/* =========================================================
+   TEMPORARY ADMIN HISTORICAL CLOSE-OUT
+   Remove after the historical backlog has been cleared.
+========================================================= */
+
+function updateAdminHistoricalCloseoutButton() {
+  const button = document.getElementById('adminHistoricalCloseoutButton');
+  if (!button) return;
+
+  const isAdmin =
+    pdiUserProfile?.is_active === true &&
+    pdiUserProfile?.is_admin === true;
+
+  const hasPendingSteps =
+    selectedPdiSteps.some(
+      step => String(step.step_status || '').toLowerCase() !== 'completed'
+    );
+
+  button.classList.toggle('hidden', !(isAdmin && hasPendingSteps));
+}
+
+async function completeHistoricalPdiWorkflow() {
+  const button = document.getElementById('adminHistoricalCloseoutButton');
+
+  if (
+    pdiUserProfile?.is_active !== true ||
+    pdiUserProfile?.is_admin !== true
+  ) {
+    alert('Administrator access is required.');
+    return;
+  }
+
+  const selectedCase =
+    pdiCases.find(
+      item => Number(item.id) === Number(selectedPdiCaseId)
+    );
+
+  if (!selectedCase) {
+    alert('Please open a vehicle workflow first.');
+    return;
+  }
+
+  const pendingSteps =
+    selectedPdiSteps
+      .filter(
+        step =>
+          step.id &&
+          String(step.step_status || '').toLowerCase() !== 'completed'
+      )
+      .sort((a, b) => Number(a.step_no) - Number(b.step_no));
+
+  if (!pendingSteps.length) {
+    alert('This vehicle has no outstanding workflow steps.');
+    updateAdminHistoricalCloseoutButton();
+    return;
+  }
+
+  const vehicleLabel =
+    [selectedCase.stock_no, selectedCase.vin]
+      .filter(Boolean)
+      .join(' · ');
+
+  const confirmed = confirm(
+    'ADMINISTRATIVE HISTORICAL CLOSE-OUT\n\n' +
+    (vehicleLabel || 'Selected vehicle') + '\n\n' +
+    'This will complete all ' + pendingSteps.length +
+    ' outstanding workflow step(s) because the vehicle was already delivered before the system was brought up to date.\n\n' +
+    'No warranty document, delivery signature or delivery photo will be fabricated. ' +
+    'Each outstanding step will receive an administrative historical close-out audit comment.\n\n' +
+    'This action is intended only for backlog clean-up and cannot be automatically undone.\n\n' +
+    'Continue?'
+  );
+
+  if (!confirmed) return;
+
+  const auditComment =
+    'Administrative historical close-out — vehicle already delivered before system workflow was updated. No historical evidence fabricated.';
+
+  try {
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Completing...';
+    }
+
+    for (const step of pendingSteps) {
+      const { error } =
+        await supabaseClient.rpc(
+          'complete_pdi_step',
+          {
+            target_step_id: step.id,
+            step_comments: auditComment
+          }
+        );
+
+      if (error) {
+        throw new Error(
+          'Step ' + step.step_no + ' could not be completed: ' +
+          (error.message || 'Unknown error')
+        );
+      }
+    }
+
+    await loadPdiCases();
+
+    const stillExists =
+      pdiCases.find(
+        item => Number(item.id) === Number(selectedPdiCaseId)
+      );
+
+    if (stillExists) {
+      await openPdiWorkflow(selectedPdiCaseId);
+    } else {
+      document.getElementById('workflowSection')?.classList.add('hidden');
+    }
+
+    alert(
+      'Historical close-out complete. ' +
+      pendingSteps.length +
+      ' outstanding workflow step(s) were administratively completed.'
+    );
+  } catch (error) {
+    console.error('Historical close-out failed:', error);
+
+    await loadPdiWorkflowSteps(selectedPdiCaseId);
+
+    alert(
+      'Historical close-out stopped before completion.\n\n' +
+      (error?.message || 'Please check the browser console.') +
+      '\n\nAny steps completed before the error remain recorded in the audit trail.'
+    );
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Complete All (Historical)';
+    }
+    updateAdminHistoricalCloseoutButton();
+  }
+}
+
+document
+  .getElementById('adminHistoricalCloseoutButton')
+  ?.addEventListener('click', completeHistoricalPdiWorkflow);
 
 /* =========================================================
    MODIFY EXISTING OPEN WORKFLOW FUNCTION
