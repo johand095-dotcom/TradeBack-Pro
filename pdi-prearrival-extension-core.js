@@ -67,7 +67,8 @@
     }
 
     function rolesContainSalesperson(roles) {
-        return normaliseRoles(roles).includes("sales person");
+        const normalised = normaliseRoles(roles);
+        return normalised.includes("sales person") || normalised.includes("sales");
     }
 
     function currentUserIsSalespersonOnly() {

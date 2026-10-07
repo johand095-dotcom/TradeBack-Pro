@@ -96,13 +96,15 @@ function insertReceivingWaitingOrdersPanel(){
 
 async function updateLinkedPdiCaseFromReceiving(record){
   if(!record||record.status!=='Completed')return true;const f=record.fields||{};const now=record.completedAt||new Date().toISOString();const vin=normaliseReceivingVin(f.receivingVin);if(!vin)throw new Error('VIN is required before the vehicle can enter the PDI workflow.');
-  const {data:live,error:liveError}=await supabaseClient.from('pdi_cases').select('id,receiving_no,vin,order_status,received_at').eq('vin',f.receivingVin);if(liveError)throw liveError;
+  const {data:live,error:liveError}=await supabaseClient.from('pdi_cases').select('id,receiving_no,vin,order_status,received_at').ilike('vin',f.receivingVin.trim());if(liveError)throw liveError;
   const conflict=(live||[]).find(x=>x.id!==receivingSelectedPdiCaseId);if(conflict)throw new Error(`VIN ${vin} already exists in Vehicle Suite. Duplicate vehicle creation blocked.`);
   const payload={receiving_no:record.receivingNo,stock_no:f.stockNumber||null,vin:f.receivingVin||null,make:f.receivingMake||null,model:f.receivingModel||null,oem_supplier:f.receivingSupplier||null,received_at:now,order_status:'Received',workflow_status:'In Progress',current_phase:1,current_step:1,current_step_started_at:now,updated_at:now};
   if(receivingSelectedPdiCaseId){const {error}=await supabaseClient.from('pdi_cases').update(payload).eq('id',receivingSelectedPdiCaseId);if(error)throw error;}
   else{if(!receivingManualVehicleMode)throw new Error('Vehicle is not linked to Waiting Orders. Use Manual Receiving only for a genuine unplanned arrival.');const {data,error}=await supabaseClient.from('pdi_cases').insert({...payload,order_reference:f.deliveryReference||null,ordered_at:null,started_at:now}).select('id').single();if(error)throw error;receivingSelectedPdiCaseId=data?.id||null;}
   await loadReceivingPdiVehicleIndex();return true;
 }
+
+window.updateLinkedPdiCaseFromReceiving = updateLinkedPdiCaseFromReceiving;
 
 function initialiseReceivingWaitingOrderIntegration(){
   insertReceivingWaitingOrdersPanel();setReceivingCoreVehicleFieldsLocked();

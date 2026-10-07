@@ -630,6 +630,30 @@
 </section>
 
       <!-- =================================================
+           SEARCH ALL PDI VEHICLES
+      ================================================== -->
+
+      <section id="pdiGlobalSearchSection" class="card pdi-global-search-card">
+        <div class="section-heading">
+          <div>
+            <h2>Search All</h2>
+            <p>Find a vehicle anywhere in the PDI module.</p>
+          </div>
+        </div>
+
+        <div class="pdi-global-search-wrap">
+          <input
+            id="pdiGlobalSearch"
+            type="search"
+            placeholder="Search VIN, stock number or receiving number..."
+            autocomplete="off"
+          />
+          <div id="pdiGlobalSearchResults" class="pdi-global-search-results hidden"></div>
+        </div>
+      </section>
+
+
+      <!-- =================================================
            MY ACTIONS
       ================================================== -->
 
@@ -1242,6 +1266,19 @@
 
                 </div>
 
+                <div class="bodybuilder-field">
+
+                    <label for="bodybuilderStartDate">
+                        Bodybuilder Start Date
+                    </label>
+
+                    <input
+                        type="date"
+                        id="bodybuilderStartDate"
+                    >
+
+                </div>
+
             </div>
 
             <button
@@ -1698,6 +1735,20 @@
           order numbers or comments...
         "
       ></textarea>
+
+      <div id="stepSalesAttachmentWrap" class="hidden">
+        <label for="stepSalesAttachment">
+          Supporting Document (optional)
+        </label>
+        <input
+          id="stepSalesAttachment"
+          type="file"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+        />
+        <small>
+          Sales may attach supporting documentation to steps in Phases 1, 3 and 5.
+        </small>
+      </div>
 
 
       <div class="modal-actions">

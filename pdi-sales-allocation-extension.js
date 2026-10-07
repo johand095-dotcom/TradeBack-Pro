@@ -58,7 +58,10 @@
       if (error) throw error;
 
       state.salespeople = (data || [])
-        .filter(profile => normaliseRoles(profile).includes('sales person'))
+        .filter(profile => {
+          const roles = normaliseRoles(profile);
+          return roles.includes('sales person') || roles.includes('sales');
+        })
         .sort((a, b) => String(a.full_name || a.email || '').localeCompare(String(b.full_name || b.email || '')));
     } catch (error) {
       console.error('Could not load salespeople for allocation:', error);
@@ -141,15 +144,26 @@
     current.textContent = record.allocated_salesperson_name || 'Unallocated';
     message.textContent = '';
 
-    select.innerHTML = '<option value="">Unallocated</option>' + state.salespeople.map(person =>
-      `<option value="${person.user_id}">${person.full_name || person.email}</option>`
-    ).join('');
-    select.value = record.allocated_salesperson_id || '';
+    select.innerHTML =
+      '<option value="">Unallocated</option>' +
+      '<option value="__house_deals__">House Deals</option>' +
+      state.salespeople.map(person =>
+        `<option value="${person.user_id}">${person.full_name || person.email}</option>`
+      ).join('');
+
+    select.value =
+      record.allocated_salesperson_name === 'House Deals'
+        ? '__house_deals__'
+        : (record.allocated_salesperson_id || '');
 
     save.onclick = async () => {
-      const selectedId = select.value || null;
+      const rawValue = select.value || '';
+      const isHouseDeal = rawValue === '__house_deals__';
+      const selectedId = isHouseDeal ? null : (rawValue || null);
       const selected = state.salespeople.find(person => String(person.user_id) === String(selectedId));
-      const selectedName = selected ? (selected.full_name || selected.email) : null;
+      const selectedName = isHouseDeal
+        ? 'House Deals'
+        : (selected ? (selected.full_name || selected.email) : null);
 
       save.disabled = true;
       save.textContent = 'Saving...';
@@ -199,7 +213,7 @@
     button.type = 'button';
     button.className = 'workflow-action-btn salesperson-allocation-btn';
     button.style.marginTop = '6px';
-    button.textContent = record.allocated_salesperson_id ? 'Change Salesperson' : 'Allocate Salesperson';
+    button.textContent = record.allocated_salesperson_name ? 'Change Salesperson' : 'Allocate Salesperson';
     button.dataset.caseId = caseId;
     button.addEventListener('click', () => openAllocationModal(caseId));
     actionCell.appendChild(button);

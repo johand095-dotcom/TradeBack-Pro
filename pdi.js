@@ -896,6 +896,7 @@ initialisePreArrivalOrderForm();
 
   renderPdiArchive();
 await renderMyPdiActions();
+initialisePdiGlobalSearch();
 }
 
 
@@ -1022,6 +1023,119 @@ caseRecord.current_step_target_hours =
 
 
 /* =========================================================
+   GLOBAL PDI SEARCH
+========================================================= */
+
+function initialisePdiGlobalSearch() {
+
+  const input =
+    document.getElementById('pdiGlobalSearch');
+
+  const results =
+    document.getElementById('pdiGlobalSearchResults');
+
+  if (!input || !results || input.dataset.bound === 'true') {
+    return;
+  }
+
+  input.dataset.bound = 'true';
+
+  const closeResults = () => {
+    results.classList.add('hidden');
+    results.innerHTML = '';
+  };
+
+  input.addEventListener('input', () => {
+
+    const query =
+      input.value.trim().toLowerCase();
+
+    if (!query) {
+      closeResults();
+      return;
+    }
+
+    const matches =
+      (pdiCases || [])
+        .filter(item => {
+          const haystack = [
+            item.vin,
+            item.stock_no,
+            item.receiving_no
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+          return haystack.includes(query);
+        })
+        .slice(0, 20);
+
+    if (!matches.length) {
+      results.innerHTML =
+        '<div class="pdi-global-search-empty">No matching PDI vehicle found.</div>';
+      results.classList.remove('hidden');
+      return;
+    }
+
+    results.innerHTML =
+      matches.map(item => {
+        const vehicle =
+          [item.make, item.model]
+            .filter(Boolean)
+            .join(' ') || '-';
+
+        return `
+          <button
+            type="button"
+            class="pdi-global-search-result"
+            data-case-id="${item.id}"
+          >
+            <strong>${escapePdiHtml(item.vin || 'VIN not captured')}</strong>
+            <span>${escapePdiHtml(item.stock_no || 'No stock no.')} · ${escapePdiHtml(vehicle)}</span>
+            <span>${escapePdiHtml(item.receiving_no || 'Not yet received')} · ${escapePdiHtml(item.workflow_status || item.order_status || '-')}</span>
+          </button>
+        `;
+      }).join('');
+
+    results.classList.remove('hidden');
+  });
+
+  results.addEventListener('click', event => {
+    const button =
+      event.target.closest('.pdi-global-search-result');
+
+    if (!button) return;
+
+    const caseId =
+      Number(button.dataset.caseId);
+
+    closeResults();
+    input.value = '';
+
+    if (caseId && typeof openPdiWorkflow === 'function') {
+      openPdiWorkflow(caseId);
+
+      document
+        .getElementById('workflowSection')
+        ?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+    }
+  });
+
+  document.addEventListener('click', event => {
+    if (
+      !results.contains(event.target) &&
+      event.target !== input
+    ) {
+      closeResults();
+    }
+  });
+}
+
+/* =========================================================
    DASHBOARD METRICS
 ========================================================= */
 
@@ -1129,11 +1243,16 @@ const salespersonSelect =
         'preArrivalSalesperson'
     );
 
-const allocatedSalespersonId =
+const allocatedSalespersonRaw =
     salespersonSelect?.value || '';
 
+const allocatedSalespersonId =
+    allocatedSalespersonRaw === '__house_deals__'
+        ? ''
+        : allocatedSalespersonRaw;
+
 const allocatedSalespersonName =
-    allocatedSalespersonId
+    allocatedSalespersonRaw
         ? salespersonSelect
             ?.options[
                 salespersonSelect.selectedIndex
@@ -1591,16 +1710,7 @@ function renderAwaitingArrivalTable() {
         awaitingArrival
             .map(
                 item => {
-console.log(
-    'DASHBOARD ROW:',
-    item.vin,
-    'classification:',
-    item.stock_classification,
-    'customer:',
-    item.allocated_customer,
-    item
-);
-                    const classification =
+const classification =
                         item.stock_classification ||
                         '-';
 
@@ -2680,16 +2790,7 @@ if (deleteVehicleButton) {
         Boolean(
             pdiUserProfile?.is_admin
         );
-console.log(
-    'DELETE BUTTON DEBUG:',
-    {
-        pdiUserProfile,
-        is_admin: pdiUserProfile?.is_admin,
-        isFullAdmin,
-        deleteVehicleButton
-    }
-);
-    deleteVehicleButton.classList.toggle(
+deleteVehicleButton.classList.toggle(
         'hidden',
         !isFullAdmin
     );
@@ -2917,12 +3018,6 @@ const receivingPhotos =
     await loadReceivingPhotos(
         selectedCase.receiving_no
     );
-
-console.log(
-    'Receiving photos loaded:',
-    receivingPhotos
-);
-
 await renderWorkflowReceivingPhotos(
     receivingPhotos
 );
@@ -2938,6 +3033,10 @@ initialiseBodybuilderPhase(
     .remove(
       'hidden'
     );
+
+  initialiseWorkflowPhaseAccordions(
+    selectedCase
+  );
 
 
   document
@@ -3713,6 +3812,7 @@ const returnButton =
             supplier_name,
             body_description,
             estimated_days,
+            started_at,
             status,
             checkout_at,
             returned_at
@@ -3783,6 +3883,18 @@ if (existingVisit) {
                 existingVisit.estimated_days ||
                 '';
 
+        const bodybuilderStartDate =
+            document.getElementById(
+                'bodybuilderStartDate'
+            );
+
+        if (bodybuilderStartDate) {
+            bodybuilderStartDate.value =
+                existingVisit.started_at
+                    ? String(existingVisit.started_at).slice(0, 10)
+                    : '';
+        }
+
         status.textContent =
             existingVisit.status ||
             'Bodybuilder Required';
@@ -3799,16 +3911,6 @@ const returnPanel =
     document.getElementById(
         'bodybuilderReturnPanel'
     );
-
-    console.log(
-    'Bodybuilder panel test:',
-    {
-        status: existingVisit?.status,
-        checkoutPanel,
-        returnPanel
-    }
-);
-
 if (checkoutPanel) {
     checkoutPanel.classList.add('hidden');
 }
@@ -4372,150 +4474,218 @@ if (
 
 saveButton.onclick = async function () {
 
-        const decision =
-            requiredSelect.value;
+        const decision = requiredSelect.value;
 
         if (!decision) {
-
-            alert(
-                'Please select whether a bodybuilder is required.'
-            );
-
+            alert('Please select whether a bodybuilder is required.');
             return;
         }
 
         const supplier =
-            document
-                .getElementById('bodybuilderSupplier')
-                ?.value
-                .trim() || null;
+            document.getElementById('bodybuilderSupplier')
+                ?.value.trim() || null;
 
         const bodyDescription =
-            document
-                .getElementById('bodybuilderDescription')
-                ?.value
-                .trim() || null;
+            document.getElementById('bodybuilderDescription')
+                ?.value.trim() || null;
 
         const estimatedDays =
             Number(
-                document
-                    .getElementById('bodybuilderEstimatedDays')
+                document.getElementById('bodybuilderEstimatedDays')
                     ?.value
             ) || null;
 
+        const startDate =
+            document.getElementById('bodybuilderStartDate')
+                ?.value || null;
+
         if (decision === 'yes') {
-
-            if (
-                !supplier ||
-                !bodyDescription ||
-                !estimatedDays
-            ) {
-
+            if (!supplier || !bodyDescription || !estimatedDays || !startDate) {
                 alert(
-                    'Please enter the supplier, body being fitted and estimated fitment days.'
+                    'Please enter the supplier, body being fitted, estimated fitment days and Bodybuilder Start Date.'
                 );
-
                 return;
             }
         }
 
-        console.log(
-            'Saving bodybuilder decision:',
-            {
-                receivingNo:
-                    selectedCase.receiving_no,
-                decision,
-                supplier,
-                bodyDescription,
-                estimatedDays
+        const bodybuilderRequired = decision === 'yes';
+        const bodybuilderStatus =
+            bodybuilderRequired
+                ? 'Ready for Dispatch'
+                : 'Not Applicable';
+
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving...';
+
+        try {
+            const now = new Date().toISOString();
+
+            const payload = {
+                pdi_case_id: selectedCase.id,
+                receiving_no: selectedCase.receiving_no || null,
+                bodybuilder_required: bodybuilderRequired,
+                supplier_name: bodybuilderRequired ? supplier : null,
+                body_description: bodybuilderRequired ? bodyDescription : null,
+                estimated_days: bodybuilderRequired ? estimatedDays : null,
+                started_at:
+                    bodybuilderRequired && startDate
+                        ? new Date(`${startDate}T00:00:00`).toISOString()
+                        : null,
+                status: bodybuilderStatus,
+                updated_at: now
+            };
+
+            const {
+                data: existingRows,
+                error: existingError
+            } = await supabaseClient
+                .from('pdi_bodybuilder_visits')
+                .select('id')
+                .eq('pdi_case_id', selectedCase.id)
+                .limit(1);
+
+            if (existingError) throw existingError;
+
+            let saveError = null;
+
+            if (existingRows?.length) {
+                const result = await supabaseClient
+                    .from('pdi_bodybuilder_visits')
+                    .update(payload)
+                    .eq('id', existingRows[0].id);
+
+                saveError = result.error;
+            } else {
+                const result = await supabaseClient
+                    .from('pdi_bodybuilder_visits')
+                    .insert(payload);
+
+                saveError = result.error;
             }
+
+            if (saveError) throw saveError;
+
+            status.textContent =
+                bodybuilderRequired
+                    ? 'Ready for Dispatch'
+                    : 'Not Applicable';
+
+            await initialiseBodybuilderPhase(selectedCase);
+
+            alert('Bodybuilder details saved successfully.');
+
+        } catch (error) {
+            console.error(
+                'Could not save bodybuilder details:',
+                error
+            );
+
+            const message =
+                error?.message ||
+                'Unknown database error';
+
+            alert(
+                'Bodybuilder details could not be saved. ' +
+                message
+            );
+        } finally {
+            saveButton.disabled = false;
+            saveButton.textContent = 'Save Bodybuilder Details';
+        }
+    };}
+/* =========================================================
+   WORKFLOW PHASE ACCORDIONS
+   Every phase can be reviewed manually. The phase containing
+   the current workflow step opens automatically.
+========================================================= */
+
+function initialiseWorkflowPhaseAccordions(selectedCase) {
+
+    const workflow =
+        document.getElementById('workflowSection');
+
+    if (!workflow) return;
+
+    const sections =
+        Array.from(
+            workflow.querySelectorAll('.phase-section')
         );
 
-        const bodybuilderRequired =
-    decision === 'yes';
+    sections.forEach((section, index) => {
 
-const bodybuilderStatus =
-    bodybuilderRequired
-        ? 'Ready for Dispatch'
-        : 'Not Applicable';
+        const heading =
+            section.querySelector(':scope > .phase-heading');
 
-const {
-    error: saveError
-} =
-    await supabaseClient
-        .from('pdi_bodybuilder_visits')
-        .upsert(
-            {
-                pdi_case_id:
-                    selectedCase.id,
+        if (!heading) return;
 
-                receiving_no:
-                    selectedCase.receiving_no,
+        if (heading.dataset.phaseAccordionBound !== '1') {
 
-                bodybuilder_required:
-                    bodybuilderRequired,
+            heading.dataset.phaseAccordionBound = '1';
+            heading.setAttribute('role', 'button');
+            heading.setAttribute('tabindex', '0');
 
-                supplier_name:
-                    bodybuilderRequired
-                        ? supplier
-                        : null,
+            const toggle = () => {
+                section.classList.toggle(
+                    'workflow-phase-collapsed'
+                );
 
-                body_description:
-                    bodybuilderRequired
-                        ? bodyDescription
-                        : null,
+                heading.setAttribute(
+                    'aria-expanded',
+                    String(
+                        !section.classList.contains(
+                            'workflow-phase-collapsed'
+                        )
+                    )
+                );
+            };
 
-                estimated_days:
-                    bodybuilderRequired
-                        ? estimatedDays
-                        : null,
+            heading.addEventListener('click', toggle);
 
-                status:
-                    bodybuilderStatus,
+            heading.addEventListener(
+                'keydown',
+                event => {
+                    if (
+                        event.key === 'Enter' ||
+                        event.key === ' '
+                    ) {
+                        event.preventDefault();
+                        toggle();
+                    }
+                }
+            );
+        }
 
-                updated_at:
-                    new Date().toISOString()
-            },
-            {
-                onConflict:
-                    'pdi_case_id'
-            }
+        section.classList.add(
+            'workflow-phase-collapsed'
         );
 
-if (saveError) {
+        heading.setAttribute(
+            'aria-expanded',
+            'false'
+        );
 
-    console.error(
-        'Could not save bodybuilder details:',
-        saveError
-    );
+        const dbPhase =
+            Number(selectedCase?.current_phase || 0);
 
-    alert(
-        'Bodybuilder details could not be saved.'
-    );
+        const shouldOpen =
+            (dbPhase <= 1 && index === 0) ||
+            (dbPhase === 2 && index === 2) ||
+            (dbPhase === 3 && index === 3) ||
+            (dbPhase >= 4 && index === 4);
 
-    return;
+        if (shouldOpen) {
+            section.classList.remove(
+                'workflow-phase-collapsed'
+            );
+
+            heading.setAttribute(
+                'aria-expanded',
+                'true'
+            );
+        }
+    });
 }
-if (decision === 'yes') {
 
-    status.textContent =
-        'Ready for Dispatch';
-
-} else {
-
-    status.textContent =
-        'Not Applicable';
-}
-
-await initialiseBodybuilderPhase(
-    selectedCase
-);
-
-alert(
-    'Bodybuilder details saved successfully.'
-);
-
-};
-}
 /* =========================================================
    CLOSE WORKFLOW
 ========================================================= */
@@ -4571,6 +4741,9 @@ async function loadPdiWorkflowSteps(caseId) {
         completed_by_name,
         completed_at,
         comments,
+        attachment_url,
+        attachment_name,
+        attachment_required,
  reopened_by,
 reopened_by_name,
 reopened_at,
@@ -4661,8 +4834,39 @@ function renderPdiWorkflowSteps() {
   phase3.innerHTML = '';
   phase4.innerHTML = '';
 
+  /*
+    Older / pre-arrival PDI records may not yet have their
+    pdi_case_steps rows. Render the master step templates as
+    pending rows so every phase remains visible and reviewable.
+    Once real case-step rows exist they remain the source of truth.
+  */
+  const selectedCase =
+    pdiCases.find(
+      item =>
+        Number(item.id) ===
+        Number(selectedPdiCaseId)
+    );
 
-  selectedPdiSteps.forEach(
+  const workflowSteps =
+    selectedPdiSteps.length
+      ? selectedPdiSteps
+      : (pdiStepTemplates || []).map(
+          template => ({
+            id: null,
+            pdi_case_id: selectedPdiCaseId,
+            step_no: template.step_no,
+            phase_no: template.phase_no,
+            activity: template.activity,
+            responsible_role: template.responsible_role,
+            step_status: 'Pending',
+            completed_by_name: null,
+            completed_at: null,
+            comments: null,
+            template_only: true
+          })
+        );
+
+  workflowSteps.forEach(
     step => {
 
       const html =
@@ -4801,6 +5005,11 @@ function buildPdiStepHtml(step) {
       `
       : '';
 
+const stepAttachmentHtml =
+    step.attachment_url
+        ? `<span class="workflow-step-attachment">📎 ${escapePdiHtml(step.attachment_name || 'Attachment')}</span>`
+        : '';
+
 const reopenAuditHtml =
     step.reopened_at
         ? `
@@ -4851,6 +5060,7 @@ if (canReopen) {
     `;
 
 } else if (
+    !step.template_only &&
     isCurrentPhase &&
     !isCompleted &&
     canAction
@@ -4919,6 +5129,7 @@ if (canReopen) {
         </strong>
 
         ${completedDetail}
+        ${stepAttachmentHtml}
 
 ${reopenAuditHtml}
 
@@ -4986,16 +5197,6 @@ function attachPdiStepButtons() {
             Number(step.id) ===
             Number(stepId)
     );
-
-  console.log(
-    'PDI Complete clicked:',
-    {
-        stepId,
-        stepRecord,
-        stepNo: stepRecord?.step_no
-    }
-);  
-
 if (
     Number(stepRecord?.step_no) === 42
 ) {
@@ -5186,6 +5387,16 @@ function openDigitalDeliveryNoteModal(stepRecord) {
 
             </div>
 
+            <div class="delivery-section">
+                <h4>Delivery Evidence</h4>
+                <label>Manual Delivery Checksheet (optional)</label>
+                <input type="file" id="manualDeliveryChecksheet" accept=".pdf,.jpg,.jpeg,.png" />
+                <small>Use this when delivery is performed by a driver without the salesperson present.</small>
+                <label>Delivery Photo</label>
+                <input type="file" id="deliveryPhoto" accept="image/*" capture="environment" required />
+                <small>One delivery photo is required.</small>
+            </div>
+
             <div
                 class="delivery-section"
                 id="deliveryChecklistSection"
@@ -5292,14 +5503,18 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                         )
                         .value;
 
+                const deliveryPhotoFile =
+                    document.getElementById('deliveryPhoto')?.files?.[0] || null;
+
                 if (
                     !customerName ||
                     !responsiblePerson ||
                     !mileage ||
-                    !deliveryDate
+                    !deliveryDate ||
+                    !deliveryPhotoFile
                 ) {
                     message.textContent =
-                        'Please complete all required delivery details.';
+                        'Please complete all required delivery details and attach one delivery photo.';
 
                     return;
                 }
@@ -5318,7 +5533,7 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                         'Key - Spare Key',
                         'Jack - Tools - Service Manual',
                         'Spare Wheel',
-                        '2 Day Temporary Permit',
+                        '21 day permit',
                         'Vehicle Comprehensive Insurance',
                         'Seats',
                         'Safety Belts',
@@ -5334,7 +5549,10 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                         'Chips on Window',
                         'Door Handles / Locks',
                         'Fuel Tank Caps',
-                        'Tyre Pressure'
+                        'Tyre Pressure',
+                        'Warranty explained',
+                        'Service interval explained',
+                        'Driver training offered'
                     ];
 
                     checklistContainer.innerHTML =
@@ -5367,6 +5585,14 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                                                 value="No"
                                             />
                                             No
+                                        </label>
+                                        <label>
+                                            <input
+                                                type="radio"
+                                                name="deliveryChecklist_${index}"
+                                                value="N.A"
+                                            />
+                                            N.A
                                         </label>
 
                                     </div>
@@ -5401,6 +5627,9 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                         )
                     );
 
+                const manualChecksheetFile =
+                    document.getElementById('manualDeliveryChecksheet')?.files?.[0] || null;
+
                 const incompleteChecklist =
                     checklistRows.some(
                         (row, index) =>
@@ -5409,10 +5638,10 @@ function openDigitalDeliveryNoteModal(stepRecord) {
                             )
                     );
 
-                if (incompleteChecklist) {
+                if (incompleteChecklist && !manualChecksheetFile) {
 
                     message.textContent =
-                        'Please complete every handover checklist item before continuing.';
+                        'Please complete every handover checklist item, or attach the completed manual delivery checksheet.';
 
                     return;
                 }
@@ -5573,13 +5802,17 @@ blankSalesCanvas.height =
 const blankSalesSignature =
     blankSalesCanvas.toDataURL();
 
+const manualChecksheetAttached =
+    Boolean(document.getElementById('manualDeliveryChecksheet')?.files?.[0]);
+
 if (
     customerSignature === blankCustomerSignature ||
-    salesSignature === blankSalesSignature
+    (!manualChecksheetAttached && salesSignature === blankSalesSignature)
 ) {
     message.textContent =
-        'Both customer and Sales Person signatures are required before completing delivery.';
-
+        manualChecksheetAttached
+            ? 'Customer signature is required before completing delivery.'
+            : 'Both customer and Sales Person signatures are required before completing delivery.';
     return;
 }
 
@@ -5663,6 +5896,41 @@ try {
         }
     );
 
+
+    // -----------------------------------------
+    // UPLOAD DELIVERY EVIDENCE
+    // -----------------------------------------
+
+    const uploadDeliveryEvidence = async (file, label) => {
+        if (!file) return null;
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `pdi-cases/${selectedPdiCaseId}/step-44/${label}-${Date.now()}-${safeName}`;
+        const { error } = await supabaseClient.storage
+            .from('bodybuilder-photos')
+            .upload(path, file, {
+                contentType: file.type || 'application/octet-stream',
+                upsert: false
+            });
+        if (error) throw error;
+        return path;
+    };
+
+    const deliveryPhotoPath = await uploadDeliveryEvidence(
+        document.getElementById('deliveryPhoto')?.files?.[0] || null,
+        'delivery-photo'
+    );
+
+    const manualChecksheetPath = await uploadDeliveryEvidence(
+        document.getElementById('manualDeliveryChecksheet')?.files?.[0] || null,
+        'manual-checksheet'
+    );
+
+    checklistData.push({
+        item: 'Delivery Evidence',
+        result: 'Captured',
+        delivery_photo_path: deliveryPhotoPath,
+        manual_checksheet_path: manualChecksheetPath
+    });
 
     // -----------------------------------------
     // SAVE DELIVERY RECEIPT
@@ -6698,6 +6966,19 @@ function openPdiStepModal(stepId) {
       step.comments ||
       '';
 
+  const salesAttachmentWrap =
+    document.getElementById('stepSalesAttachmentWrap');
+
+  const salesAttachmentInput =
+    document.getElementById('stepSalesAttachment');
+
+  const salesAttachmentPhase =
+    [1, 2, 4].includes(Number(step.phase_no));
+
+  salesAttachmentWrap?.classList.toggle('hidden', !salesAttachmentPhase);
+
+  if (salesAttachmentInput) salesAttachmentInput.value = '';
+
 
   document
     .getElementById(
@@ -6809,6 +7090,36 @@ Responsible role: ${selectedPdiStep.responsible_role}`
     const userEmail =
       pdiSession.user.email ||
       'Authenticated User';
+
+const salesAttachmentFile =
+  document.getElementById('stepSalesAttachment')?.files?.[0] || null;
+
+if (salesAttachmentFile && [1, 2, 4].includes(Number(selectedPdiStep.phase_no))) {
+  const safeFileName = salesAttachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const attachmentPath =
+    `pdi-cases/${selectedPdiCaseId}/step-${selectedPdiStep.step_no}/${Date.now()}-${safeFileName}`;
+
+  const { error: uploadError } =
+    await supabaseClient.storage
+      .from('bodybuilder-photos')
+      .upload(attachmentPath, salesAttachmentFile, {
+        contentType: salesAttachmentFile.type || 'application/octet-stream',
+        upsert: false
+      });
+
+  if (uploadError) throw uploadError;
+
+  const { error: evidenceError } =
+    await supabaseClient.rpc('save_pdi_step_response', {
+      target_step_id: selectedPdiStep.id,
+      new_response_value: 'Supporting document attached',
+      new_attachment_url: attachmentPath,
+      new_attachment_name: salesAttachmentFile.name,
+      new_attachment_required: false
+    });
+
+  if (evidenceError) throw evidenceError;
+}
 
 const {
   data,

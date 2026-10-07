@@ -2315,3 +2315,153 @@ padding: 8px 8px;
 .side-nav::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.38);
 }
+
+/* =========================================================
+   PDI UPGRADE - WORKFLOW PHASE ACCORDIONS
+========================================================= */
+#workflowSection .phase-heading {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 52px;
+}
+
+#workflowSection .phase-heading::after {
+  content: '⌃';
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--grey-300);
+  border-radius: 9px;
+  background: var(--white);
+  color: var(--navy);
+  font-weight: 900;
+}
+
+#workflowSection .phase-section.workflow-phase-collapsed > .phase-heading::after {
+  content: '⌄';
+}
+
+#workflowSection .phase-section.workflow-phase-collapsed > .workflow-steps {
+  display: none !important;
+}
+
+#workflowSection .phase-heading:focus-visible {
+  outline: 3px solid rgba(0, 94, 168, 0.18);
+  outline-offset: 3px;
+}
+
+
+/* =========================================================
+   PDI UPGRADE - GLOBAL SEARCH
+========================================================= */
+.pdi-global-search-card {
+  position: relative;
+  overflow: visible;
+}
+
+.pdi-global-search-wrap {
+  position: relative;
+}
+
+#pdiGlobalSearch {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid var(--grey-300);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.pdi-global-search-results {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 420px;
+  overflow: auto;
+  background: var(--white);
+  border: 1px solid var(--grey-300);
+  border-radius: 12px;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
+}
+
+.pdi-global-search-result {
+  width: 100%;
+  display: grid;
+  gap: 3px;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--grey-200);
+  background: var(--white);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pdi-global-search-result:hover {
+  background: var(--grey-50);
+}
+
+.pdi-global-search-result strong {
+  color: var(--navy);
+}
+
+.pdi-global-search-result span,
+.pdi-global-search-empty {
+  color: var(--grey-600);
+  font-size: 0.9rem;
+}
+
+.pdi-global-search-empty {
+  padding: 16px;
+}
+
+
+/* PDI upgrade - attachments and delivery evidence */
+#stepSalesAttachmentWrap { margin-top: 16px; }
+#stepSalesAttachmentWrap input[type="file"],
+.delivery-section input[type="file"] { width: 100%; margin: 7px 0 10px; }
+.workflow-step-attachment { display:inline-flex; align-items:center; gap:5px; font-size:.86rem; color:var(--grey-600); }
+
+
+/* =========================================================
+   PDI UPGRADE - STEP 44 CHECKLIST POLISH
+   Desktop: Yes / No / N.A stay on one row.
+   Mobile: controls stack cleanly under the checklist item.
+========================================================= */
+.delivery-note-modal .delivery-checklist-row {
+  grid-template-columns: 40px minmax(250px, 1fr) 72px 72px 72px;
+  gap: 10px;
+}
+
+.delivery-note-modal .delivery-checklist-row label {
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .delivery-note-modal .delivery-checklist-row {
+    grid-template-columns: 30px 1fr;
+    gap: 8px 10px;
+  }
+
+  .delivery-note-modal .delivery-checklist-number {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .delivery-note-modal .delivery-checklist-label {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .delivery-note-modal .delivery-checklist-row label {
+    grid-column: 2 !important;
+    justify-content: flex-start !important;
+  }
+}

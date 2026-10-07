@@ -315,9 +315,15 @@ function getAllReceivingRecords() {
 
 function saveReceivingDatabase(records) {
   try {
+    const lightweightRecords =
+      (records || []).map(record => ({
+        ...record,
+        state: compactReceivingStateForStorage(record.state)
+      }));
+
     localStorage.setItem(
       RECEIVING_DATABASE_KEY,
-      JSON.stringify(records)
+      JSON.stringify(lightweightRecords)
     );
 
     return true;
@@ -848,6 +854,17 @@ context.fillText(
 
 function initReceiving() {
   receivingAppReady = false;
+
+  // One-time lightweight rewrite removes legacy Base64 photos
+  // that previously exhausted browser storage.
+  try {
+    const existingRecords = getReceivingDatabase();
+    if (existingRecords.length) {
+      saveReceivingDatabase(existingRecords);
+    }
+  } catch (error) {
+    console.warn('Receiving local storage cleanup skipped:', error);
+  }
   renderArrivalPhotos();
   renderReceivingChecklist();
   initReceivingSignature();
@@ -1407,6 +1424,153 @@ async function uploadReceivingPhoto(
     return storagePath;
 }
 
+function isReceivingCloudPhoto(photo) {
+  return Boolean(
+    photo &&
+    typeof photo === 'object' &&
+    photo.storagePath
+  );
+}
+
+function receivingPhotoStoragePath(photo) {
+  if (isReceivingCloudPhoto(photo)) {
+    return photo.storagePath;
+  }
+
+  return '';
+}
+
+async function getReceivingPhotoDisplayUrl(photo) {
+  if (!photo) return '';
+
+  if (typeof photo === 'string') {
+    return photo;
+  }
+
+  if (photo.displayUrl) {
+    return photo.displayUrl;
+  }
+
+  const storagePath =
+    receivingPhotoStoragePath(photo);
+
+  if (!storagePath) return '';
+
+  const { data, error } =
+    await supabaseClient.storage
+      .from('vehicle-receiving-photos')
+      .createSignedUrl(storagePath, 3600);
+
+  if (error) {
+    console.error('Could not create receiving photo URL:', error);
+    return '';
+  }
+
+  return data?.signedUrl || '';
+}
+
+function compactReceivingStateForStorage(state) {
+  const source =
+    state || { items: {}, arrivalPhotos: {} };
+
+  const arrivalPhotos =
+    Object.fromEntries(
+      Object.entries(source.arrivalPhotos || {})
+        .map(([typeId, photos]) => [
+          typeId,
+          (photos || []).map(photo => {
+            if (isReceivingCloudPhoto(photo)) {
+              return {
+                storagePath: photo.storagePath,
+                photoType: photo.photoType || typeId
+              };
+            }
+
+            // Legacy Base64 photos are intentionally omitted from
+            // persistent browser/cloud records to prevent quota growth.
+            return null;
+          }).filter(Boolean)
+        ])
+    );
+
+  const items =
+    Object.fromEntries(
+      Object.entries(source.items || {})
+        .map(([id, item]) => [
+          id,
+          {
+            ...item,
+            photos: (item.photos || [])
+              .map(photo => {
+                if (isReceivingCloudPhoto(photo)) {
+                  return {
+                    storagePath: photo.storagePath,
+                    photoType: photo.photoType || 'checklist',
+                    itemId: photo.itemId || id
+                  };
+                }
+                return null;
+              })
+              .filter(Boolean)
+          }
+        ])
+    );
+
+  return { items, arrivalPhotos };
+}
+
+async function uploadReceivingChecklistPhoto(
+  receivingNo,
+  itemId,
+  imageData
+) {
+  if (!receivingNo || !itemId || !imageData) {
+    throw new Error('Missing receiving checklist photo upload data.');
+  }
+
+  const blob = dataUrlToBlob(imageData);
+
+  const safeItem =
+    String(itemId)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+  const storagePath =
+    `${receivingNo}/checklist/${safeItem}-${Date.now()}.jpg`;
+
+  const { error } =
+    await supabaseClient.storage
+      .from('vehicle-receiving-photos')
+      .upload(storagePath, blob, {
+        contentType: 'image/jpeg',
+        upsert: false
+      });
+
+  if (error) throw error;
+
+  return storagePath;
+}
+
+async function deleteReceivingStoredPhoto(photo) {
+  const storagePath =
+    receivingPhotoStoragePath(photo);
+
+  if (!storagePath) return;
+
+  const { error } =
+    await supabaseClient.storage
+      .from('vehicle-receiving-photos')
+      .remove([storagePath]);
+
+  if (error) {
+    console.warn(
+      'Could not remove receiving photo from cloud:',
+      error
+    );
+  }
+}
+
 async function addArrivalPhoto(typeId, files) {
   const selectedFiles = Array.from(files || []);
 
@@ -1510,27 +1674,23 @@ const receivingNo =
         ?.value
         ?.trim();
 
-await uploadReceivingPhoto(
-    receivingNo,
-    typeId,
-    image,
-    gpsData,
-    locationData
-);
+const storagePath =
+    await uploadReceivingPhoto(
+      receivingNo,
+      typeId,
+      image,
+      gpsData,
+      locationData
+    );
 
-    receivingState.arrivalPhotos[typeId].push(image);
+    receivingState.arrivalPhotos[typeId].push({
+      storagePath,
+      photoType: typeId,
+      displayUrl: image
+    });
+
     refreshArrivalPhotos(typeId);
-
-    const saved = saveReceivingDraftSilent();
-
-    if (!saved) {
-      receivingState.arrivalPhotos[typeId].pop();
-      refreshArrivalPhotos(typeId);
-
-      alert(
-        'The photo was removed because the receiving record could not be saved.'
-      );
-    }
+    saveReceivingDraftSilent();
   } catch (error) {
     console.error(error);
 
@@ -1539,19 +1699,34 @@ await uploadReceivingPhoto(
     );
   }
 }
-function refreshArrivalPhotos(typeId) {
+async function refreshArrivalPhotos(typeId) {
   const box = document.getElementById(`arrival_${typeId}`);
   if (!box) return;
+
   box.innerHTML = '';
-  (receivingState.arrivalPhotos[typeId] || []).forEach((photo,index) => {
+
+  const photos =
+    receivingState.arrivalPhotos[typeId] || [];
+
+  for (let index = 0; index < photos.length; index += 1) {
+    const photo = photos[index];
+    const displayUrl =
+      await getReceivingPhotoDisplayUrl(photo);
+
     const div = document.createElement('div');
     div.className = 'photo-thumb';
-    div.innerHTML = `<img src="${photo}" /><button type="button" onclick="removeArrivalPhoto('${typeId}',${index})">Remove</button>`;
+    div.innerHTML =
+      `<img src="${displayUrl}" /><button type="button" onclick="removeArrivalPhoto('${typeId}',${index})">Remove</button>`;
     box.appendChild(div);
-  });
+  }
 }
 
-function removeArrivalPhoto(typeId,index) {
+async function removeArrivalPhoto(typeId,index) {
+  const photo =
+    receivingState.arrivalPhotos[typeId]?.[index];
+
+  await deleteReceivingStoredPhoto(photo);
+
   receivingState.arrivalPhotos[typeId].splice(index,1);
   refreshArrivalPhotos(typeId);
   saveReceivingDraftSilent();
@@ -1642,21 +1817,25 @@ async function addReceivingPhotos(id, files) {
       const image =
         await compressReceivingImage(file);
 
-      receivingState.items[id].photos.push(image);
-      refreshReceivingPhotos(id);
+      const receivingNo =
+        receivingField('receivingNo');
 
-      const saved = saveReceivingDraftSilent();
-
-      if (!saved) {
-        receivingState.items[id].photos.pop();
-        refreshReceivingPhotos(id);
-
-        alert(
-          'The photo was removed because the receiving record could not be saved.'
+      const storagePath =
+        await uploadReceivingChecklistPhoto(
+          receivingNo,
+          id,
+          image
         );
 
-        break;
-      }
+      receivingState.items[id].photos.push({
+        storagePath,
+        photoType: 'checklist',
+        itemId: id,
+        displayUrl: image
+      });
+
+      refreshReceivingPhotos(id);
+      saveReceivingDraftSilent();
     } catch (error) {
       console.error(error);
 
@@ -1667,19 +1846,34 @@ async function addReceivingPhotos(id, files) {
   }
 }
 
-function refreshReceivingPhotos(id) {
+async function refreshReceivingPhotos(id) {
   const box = document.getElementById(`receiving_photos_${id}`);
   if (!box) return;
+
   box.innerHTML = '';
-  (receivingState.items[id].photos || []).forEach((photo,index) => {
+
+  const photos =
+    receivingState.items[id]?.photos || [];
+
+  for (let index = 0; index < photos.length; index += 1) {
+    const photo = photos[index];
+    const displayUrl =
+      await getReceivingPhotoDisplayUrl(photo);
+
     const div = document.createElement('div');
     div.className = 'photo-thumb';
-    div.innerHTML = `<img src="${photo}" /><button type="button" onclick="removeReceivingPhoto('${id}',${index})">Remove</button>`;
+    div.innerHTML =
+      `<img src="${displayUrl}" /><button type="button" onclick="removeReceivingPhoto('${id}',${index})">Remove</button>`;
     box.appendChild(div);
-  });
+  }
 }
 
-function removeReceivingPhoto(id,index) {
+async function removeReceivingPhoto(id,index) {
+  const photo =
+    receivingState.items[id]?.photos?.[index];
+
+  await deleteReceivingStoredPhoto(photo);
+
   receivingState.items[id].photos.splice(index,1);
   refreshReceivingPhotos(id);
   saveReceivingDraftSilent();
@@ -1778,10 +1972,9 @@ async function saveReceivingRecordToCloud(record) {
         fields.receivingComments || '',
 
     state:
-        record.state || {
-            items: {},
-            arrivalPhotos: {}
-        },
+        compactReceivingStateForStorage(
+            record.state
+        ),
 
     signature:
         record.signature || null,
@@ -1883,7 +2076,10 @@ function saveReceivingDraftSilent() {
         : 'Draft',
     result: metrics.finalResult,
     fields,
-    state: receivingState,
+    state:
+      compactReceivingStateForStorage(
+        receivingState
+      ),
     signature,
     createdAt:
       previous?.createdAt ||
@@ -2012,7 +2208,7 @@ function loadLatestReceivingDraft() {
 }
 
 function openReceiving(receivingNo) {
- const record = getAllReceivingRecords()(r => r.receivingNo === receivingNo);
+ const record = getAllReceivingRecords().find(r => r.receivingNo === receivingNo);
   if (!record) return alert('Receiving record not found.');
   loadReceivingRecord(record);
 }
@@ -2198,12 +2394,29 @@ function updateReceivingDashboard() {
   document.getElementById('receivingCompletedCount').innerText=records.filter(r => r.status === 'Completed').length;
 }
 
-function buildReceivingReport() {
+async function buildReceivingReport() {
   const metrics=calculateReceivingResult();
+
+  // Resolve cloud photo references only when the report is built.
+  for (const photos of Object.values(receivingState.arrivalPhotos || {})) {
+    for (const photo of photos || []) {
+      if (isReceivingCloudPhoto(photo) && !photo.displayUrl) {
+        photo.displayUrl = await getReceivingPhotoDisplayUrl(photo);
+      }
+    }
+  }
+
+  for (const item of Object.values(receivingState.items || {})) {
+    for (const photo of item.photos || []) {
+      if (isReceivingCloudPhoto(photo) && !photo.displayUrl) {
+        photo.displayUrl = await getReceivingPhotoDisplayUrl(photo);
+      }
+    }
+  }
   const rows=Object.values(receivingState.items).map(i => `<tr><td>${i.item}</td><td>${i.status}</td><td>${i.comment||''}</td><td>${i.photos.length ? `${i.photos.length} photo${i.photos.length===1?'':'s'} attached` : '-'}</td></tr>`).join('');
   const allPhotos=[];
-  ARRIVAL_PHOTO_TYPES.forEach(type => (receivingState.arrivalPhotos[type.id]||[]).forEach((p,index)=>allPhotos.push({title:type.label,photo:p,index:index+1})));
-  Object.values(receivingState.items).filter(i=>i.photos.length).forEach(i=>i.photos.forEach((p,index)=>allPhotos.push({title:i.item,photo:p,index:index+1,status:i.status})));
+  ARRIVAL_PHOTO_TYPES.forEach(type => (receivingState.arrivalPhotos[type.id]||[]).forEach((p,index)=>allPhotos.push({title:type.label,photo:(p?.displayUrl || p),index:index+1})));
+  Object.values(receivingState.items).filter(i=>i.photos.length).forEach(i=>i.photos.forEach((p,index)=>allPhotos.push({title:i.item,photo:(p?.displayUrl || p),index:index+1,status:i.status})));
   const photoHtml=allPhotos.map(p=>`<div class="report-photo-card"><img class="report-photo" src="${p.photo}"/><div class="report-photo-caption"><strong>${p.title}</strong><br>${p.status?`Status: ${p.status}<br>`:''}Photo ${p.index}</div></div>`).join('');
   const report=document.getElementById('receivingReport');
   report.innerHTML=`
@@ -2229,33 +2442,115 @@ function buildReceivingReport() {
   return {report,metrics};
 }
 
-function generateReceivingReport() {
+async function generateReceivingReport() {
   if (!validateReceiving()) return;
-  const {report,metrics}=buildReceivingReport();
+
+  // Open immediately while we are still inside the user's click event.
+  // After awaiting cloud saves Chrome may block window.open as a popup.
   const printWindow=window.open('','_blank');
-  if (!printWindow) return alert('Please allow pop-ups for this site and try again.');
+  if(!printWindow) {
+    alert('Please allow pop-ups for this site so the PDF report can open.');
+    return;
+  }
+  printWindow.document.write('<!DOCTYPE html><html><head><title>Preparing Receiving Report...</title></head><body style="font-family:Arial,sans-serif;padding:32px"><h2>Preparing Receiving Report...</h2><p>Please wait while the receiving record is finalised.</p></body></html>');
+  printWindow.document.close();
+
+  /*
+   * Finalise Receiving BEFORE rendering the report.
+   * Printing is presentation only; it must never control workflow state.
+   */
+  const {report,metrics}=await buildReceivingReport();
+  const fields=collectReceivingFields();
+  const records=getReceivingDatabase();
+  const index=records.findIndex(
+    r=>r.receivingNo===fields.receivingNo
+  );
+
+  const record={
+    receivingNo:fields.receivingNo,
+    status:'Completed',
+    result:metrics.finalResult,
+    fields,
+    state:compactReceivingStateForStorage(receivingState),
+    signature:document.getElementById('receivingSignaturePad').toDataURL(),
+    createdAt:index>=0
+      ? records[index].createdAt
+      : new Date().toISOString(),
+    completedAt:new Date().toISOString(),
+    updatedAt:new Date().toISOString()
+  };
+
+  try {
+    if(index>=0) records[index]=record;
+    else records.push(record);
+
+    saveReceivingDatabase(records);
+
+    const cloudSaved=
+      await saveReceivingRecordToCloud(record);
+
+    if(!cloudSaved) {
+      throw new Error(
+        'Receiving completion could not be saved to the cloud.'
+      );
+    }
+
+    if(
+      typeof window.updateLinkedPdiCaseFromReceiving ===
+      'function'
+    ){
+      await window.updateLinkedPdiCaseFromReceiving(record);
+    } else {
+      throw new Error(
+        'PDI handoff service is not available. Refresh the page and try again.'
+      );
+    }
+
+    localStorage.setItem(
+      RECEIVING_DRAFT_KEY,
+      record.receivingNo
+    );
+
+    await syncReceivingDatabaseFromSupabase();
+    renderReceivingLibrary();
+    updateReceivingDashboard();
+  } catch(error) {
+    console.error('Receiving completion failed:',error);
+    try { printWindow.close(); } catch (_) {}
+    alert(
+      'The receiving inspection could not be completed and moved into PDI. ' +
+      (error?.message || 'Please try again.')
+    );
+    return;
+  }
+
+  printWindow.document.open();
   printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${receivingField('receivingNo')}</title><style>
     @page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#111827;font-size:12px}.report-header{display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #003b73;padding-bottom:12px;margin-bottom:18px}.report-header h1{margin:0 0 6px;color:#001e3c;font-size:24px}.mini-logo{color:#003b73;font-size:24px;font-weight:900;border:3px solid #003b73;padding:10px;border-radius:8px}h2{color:#001e3c;margin-top:22px;margin-bottom:8px;border-bottom:2px solid #eaf3ff;padding-bottom:6px;page-break-after:avoid}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #9ca3af;padding:7px;text-align:left;vertical-align:top;font-size:10px}th{background:#e8edf5}thead{display:table-header-group}tr,img{page-break-inside:avoid}.report-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.report-photo-card{border:1px solid #cbd5e1;border-radius:6px;padding:6px;break-inside:avoid}.report-photo{display:block;width:100%;height:150px;object-fit:contain;background:#f8fafc}.report-photo-caption{padding-top:5px;font-size:9px}.photo-appendix-heading{page-break-before:always}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style></head><body>${report.innerHTML}</body></html>`);
   printWindow.document.close();
-const completeRecord = async () => {
-    const fields=collectReceivingFields();
-    const records=getReceivingDatabase();
-    const index=records.findIndex(r=>r.receivingNo===fields.receivingNo);
-    const record={receivingNo:fields.receivingNo,status:'Completed',result:metrics.finalResult,fields,state:receivingState,signature:document.getElementById('receivingSignaturePad').toDataURL(),createdAt:index>=0?records[index].createdAt:new Date().toISOString(),completedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
-    if(index>=0)records[index]=record;else records.push(record);
-    saveReceivingDatabase(records);saveReceivingDatabase(records);
-    await saveReceivingRecordToCloud(record);
-  
-localStorage.setItem(
-  RECEIVING_DRAFT_KEY,
-  record.receivingNo
-);
 
-await syncReceivingDatabaseFromSupabase();
-  };
-  const printWhenReady=()=>Promise.all(Array.from(printWindow.document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;}))).then(()=>{completeRecord();setTimeout(()=>{printWindow.focus();printWindow.print();},300);});
-  if(printWindow.document.readyState==='complete')printWhenReady();else printWindow.onload=printWhenReady;
+  const printWhenReady=()=>Promise.all(
+    Array.from(printWindow.document.images).map(
+      img=>img.complete
+        ? Promise.resolve()
+        : new Promise(resolve=>{
+            img.onload=resolve;
+            img.onerror=resolve;
+          })
+    )
+  ).then(()=>{
+    setTimeout(()=>{
+      printWindow.focus();
+      printWindow.print();
+    },300);
+  });
+
+  if(printWindow.document.readyState==='complete') {
+    printWhenReady();
+  } else {
+    printWindow.onload=printWhenReady;
+  }
 }
 
 function emailReceivingReport() {
