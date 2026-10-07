@@ -1710,16 +1710,7 @@ function renderAwaitingArrivalTable() {
         awaitingArrival
             .map(
                 item => {
-console.log(
-    'DASHBOARD ROW:',
-    item.vin,
-    'classification:',
-    item.stock_classification,
-    'customer:',
-    item.allocated_customer,
-    item
-);
-                    const classification =
+const classification =
                         item.stock_classification ||
                         '-';
 
@@ -2799,16 +2790,7 @@ if (deleteVehicleButton) {
         Boolean(
             pdiUserProfile?.is_admin
         );
-console.log(
-    'DELETE BUTTON DEBUG:',
-    {
-        pdiUserProfile,
-        is_admin: pdiUserProfile?.is_admin,
-        isFullAdmin,
-        deleteVehicleButton
-    }
-);
-    deleteVehicleButton.classList.toggle(
+deleteVehicleButton.classList.toggle(
         'hidden',
         !isFullAdmin
     );
@@ -3036,12 +3018,6 @@ const receivingPhotos =
     await loadReceivingPhotos(
         selectedCase.receiving_no
     );
-
-console.log(
-    'Receiving photos loaded:',
-    receivingPhotos
-);
-
 await renderWorkflowReceivingPhotos(
     receivingPhotos
 );
@@ -3935,16 +3911,6 @@ const returnPanel =
     document.getElementById(
         'bodybuilderReturnPanel'
     );
-
-    console.log(
-    'Bodybuilder panel test:',
-    {
-        status: existingVisit?.status,
-        checkoutPanel,
-        returnPanel
-    }
-);
-
 if (checkoutPanel) {
     checkoutPanel.classList.add('hidden');
 }
@@ -5231,16 +5197,6 @@ function attachPdiStepButtons() {
             Number(step.id) ===
             Number(stepId)
     );
-
-  console.log(
-    'PDI Complete clicked:',
-    {
-        stepId,
-        stepRecord,
-        stepNo: stepRecord?.step_no
-    }
-);  
-
 if (
     Number(stepRecord?.step_no) === 42
 ) {
