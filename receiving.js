@@ -2459,7 +2459,15 @@ async function generateReceivingReport() {
    * Finalise Receiving BEFORE rendering the report.
    * Printing is presentation only; it must never control workflow state.
    */
-  const {report,metrics}=await buildReceivingReport();
+  let report, metrics;
+  try {
+    ({report,metrics}=await buildReceivingReport());
+  } catch(error) {
+    console.error('Receiving report preparation failed:',error);
+    try {printWindow.close();} catch(_) {}
+    alert('Could not prepare Receiving report: '+(error?.message||'Unknown error'));
+    return;
+  }
   const fields=collectReceivingFields();
   const records=getReceivingDatabase();
   const index=records.findIndex(
@@ -2530,21 +2538,24 @@ async function generateReceivingReport() {
   </style></head><body>${report.innerHTML}</body></html>`);
   printWindow.document.close();
 
-  const printWhenReady=()=>Promise.all(
-    Array.from(printWindow.document.images).map(
-      img=>img.complete
-        ? Promise.resolve()
-        : new Promise(resolve=>{
-            img.onload=resolve;
-            img.onerror=resolve;
-          })
-    )
-  ).then(()=>{
+  const printWhenReady=async()=>{
+    // Do not wait indefinitely for a photo that mobile browsers cannot decode.
+    await Promise.race([
+      Promise.all(Array.from(printWindow.document.images).map(img=>
+        img.complete ? Promise.resolve() :
+        new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;})
+      )),
+      new Promise(resolve=>setTimeout(resolve,8000))
+    ]);
     setTimeout(()=>{
-      printWindow.focus();
-      printWindow.print();
-    },300);
-  });
+      try {
+        printWindow.focus();
+        printWindow.print();
+      } catch(error) {
+        console.error('Receiving print dialog failed:',error);
+      }
+    },350);
+  };
 
   if(printWindow.document.readyState==='complete') {
     printWhenReady();
