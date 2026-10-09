@@ -1888,6 +1888,13 @@ ${
 ${pdiUserProfile?.is_active === true && pdiUserProfile?.is_admin === true ? `
     <button
         type="button"
+        class="workflow-action-btn prearrival-edit-order-btn"
+        data-case-id="${item.id}"
+    >
+        Edit Order
+    </button>
+    <button
+        type="button"
         class="workflow-action-btn prearrival-historical-complete-btn"
         data-case-id="${item.id}"
     >
@@ -1908,6 +1915,49 @@ ${pdiUserProfile?.is_active === true && pdiUserProfile?.is_admin === true ? `
 `;
 })
 .join('');        
+
+document.querySelectorAll('.prearrival-edit-order-btn').forEach(button => {
+  button.onclick = async function () {
+    if (pdiUserProfile?.is_admin !== true || pdiUserProfile?.is_active !== true) {
+      alert('Administrator access required.'); return;
+    }
+    const item = pdiCases.find(x => Number(x.id) === Number(button.dataset.caseId));
+    if (!item || item.received_at || item.order_status !== 'Awaiting Arrival') {
+      alert('Only orders awaiting arrival can be edited here.'); return;
+    }
+    const ask = (label, value) => prompt(label, value ?? '');
+    const supplier=ask('OEM / Supplier',item.oem_supplier); if(supplier===null)return;
+    const make=ask('Vehicle Make',item.make);if(make===null)return;
+    const model=ask('Vehicle Model',item.model);if(model===null)return;
+    const vin=ask('VIN',item.vin);if(vin===null)return;
+    const stock=ask('Stock Number',item.stock_no);if(stock===null)return;
+    const ref=ask('Order / PO Reference',item.order_reference);if(ref===null)return;
+    const eta=ask('OEM ETA (YYYY-MM-DD; blank to clear)',item.oem_eta);if(eta===null)return;
+    const cleanVin=vin.trim().toUpperCase().replace(/\\s+/g,'');
+    if(!supplier.trim()||!make.trim()||!model.trim()||!cleanVin){
+      alert('Supplier, make, model and VIN are required.');return;
+    }
+    if(eta.trim() && !/^\\d{4}-\\d{2}-\\d{2}$/.test(eta.trim())){
+      alert('ETA must be YYYY-MM-DD.');return;
+    }
+    if(pdiCases.some(x=>Number(x.id)!==Number(item.id)&&String(x.vin||'').toUpperCase().replace(/\\s+/g,'')===cleanVin)){
+      alert('This VIN already exists in PDI.');return;
+    }
+    if(!confirm('Save these corrections to Waiting Order '+cleanVin+'?'))return;
+    try {
+      button.disabled=true;
+      const {error}=await supabaseClient.from('pdi_cases').update({
+        oem_supplier:supplier.trim(),make:make.trim(),model:model.trim(),
+        vin:cleanVin,stock_no:stock.trim()||null,order_reference:ref.trim()||null,
+        oem_eta:eta.trim()||null,updated_at:new Date().toISOString()
+      }).eq('id',item.id).eq('order_status','Awaiting Arrival');
+      if(error)throw error;
+      await loadPdiCases();renderPdiDashboard();
+      alert('Waiting Order updated successfully.');
+    } catch(error){console.error('Edit Order failed',error);alert(error.message||'Could not update order.');}
+    finally{button.disabled=false;}
+  };
+});
 
 document
     .querySelectorAll('.prearrival-delete-btn')
