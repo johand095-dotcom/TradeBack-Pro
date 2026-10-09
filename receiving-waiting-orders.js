@@ -38,9 +38,9 @@ function receivingWaitingOrderLabel(x){const vehicle=[x.make,x.model].filter(Boo
 function renderReceivingWaitingOrderSelector(){
   const select=document.getElementById('receivingWaitingOrderSelect');const count=document.getElementById('receivingWaitingOrderCount');
   if(count)count.textContent=`${receivingWaitingOrders.length} vehicle${receivingWaitingOrders.length===1?'':'s'} awaiting arrival`;
-  if(!select)return;const selected=receivingSelectedPdiCaseId||'';
+  if(!select)return;const selected=String(receivingSelectedPdiCaseId||'');
   select.innerHTML='<option value="">Select a vehicle from Waiting Orders...</option>'+receivingWaitingOrders.map(x=>`<option value="${x.id}">${receivingWaitingOrderLabel(x)}</option>`).join('');
-  if(selected&&receivingWaitingOrders.some(x=>x.id===selected))select.value=selected;
+  if(selected&&receivingWaitingOrders.some(x=>String(x.id)===selected))select.value=selected;
 }
 
 function applyWaitingOrderToReceiving(item,source='selection'){
@@ -54,7 +54,7 @@ function applyWaitingOrderToReceiving(item,source='selection'){
   if(source!=='restore'&&typeof saveReceivingDraftSilent==='function')saveReceivingDraftSilent();
 }
 
-function selectReceivingWaitingOrder(id){const item=receivingWaitingOrders.find(x=>x.id===id);if(!item){receivingSelectedPdiCaseId=null;setReceivingCoreVehicleFieldsLocked();return;}applyWaitingOrderToReceiving(item);}
+function selectReceivingWaitingOrder(id){const item=receivingWaitingOrders.find(x=>String(x.id)===String(id));if(!item){receivingSelectedPdiCaseId=null;setReceivingCoreVehicleFieldsLocked();return;}applyWaitingOrderToReceiving(item);}
 function findPdiCasesByVin(vin){const n=normaliseReceivingVin(vin);return n?receivingAllPdiCases.filter(x=>normaliseReceivingVin(x.vin)===n):[];}
 function findWaitingOrderByVin(vin){const n=normaliseReceivingVin(vin);return n?receivingWaitingOrders.find(x=>normaliseReceivingVin(x.vin)===n)||null:null;}
 function findReceivingDuplicateByVin(vin,currentNo=''){const n=normaliseReceivingVin(vin);if(!n)return null;return (receivingCloudRecords||[]).find(r=>normaliseReceivingVin(r?.fields?.receivingVin)===n&&r.receivingNo!==currentNo)||null;}
@@ -62,7 +62,7 @@ function findReceivingDuplicateByVin(vin,currentNo=''){const n=normaliseReceivin
 function getReceivingDuplicateReason(){
   const vin=receivingField('receivingVin');const n=normaliseReceivingVin(vin);if(!n)return null;
   const r=findReceivingDuplicateByVin(vin,receivingField('receivingNo'));if(r)return `VIN ${n} already exists in Receiving as ${r.receivingNo}. Open the existing record instead of creating another vehicle.`;
-  const conflict=findPdiCasesByVin(vin).find(x=>x.id!==receivingSelectedPdiCaseId);
+  const conflict=findPdiCasesByVin(vin).find(x=>String(x.id)!==String(receivingSelectedPdiCaseId));
   if(conflict){if(conflict.order_status==='Awaiting Arrival'&&!conflict.received_at)return `VIN ${n} is already on PDI Waiting Orders. Select that Waiting Order instead of creating the vehicle manually.`;return `VIN ${n} already exists in Vehicle Suite. Duplicate vehicle creation is blocked.`;}
   return null;
 }
@@ -71,7 +71,7 @@ function handleReceivingVinLookup(){
   const vin=receivingField('receivingVin');if(!vin)return;
   const waiting=findWaitingOrderByVin(vin);if(waiting){applyWaitingOrderToReceiving(waiting,'vin');return;}
   const existing=findPdiCasesByVin(vin);
-  if(existing.length&&!existing.some(x=>x.id===receivingSelectedPdiCaseId)){receivingManualVehicleMode=false;setReceivingCoreVehicleFieldsLocked();setReceivingVehicleSourceMessage(`VIN ${normaliseReceivingVin(vin)} already exists in Vehicle Suite and is not an available Waiting Order. Duplicate receiving blocked.`,'error');return;}
+  if(existing.length&&!existing.some(x=>String(x.id)===String(receivingSelectedPdiCaseId))){receivingManualVehicleMode=false;setReceivingCoreVehicleFieldsLocked();setReceivingVehicleSourceMessage(`VIN ${normaliseReceivingVin(vin)} already exists in Vehicle Suite and is not an available Waiting Order. Duplicate receiving blocked.`,'error');return;}
   if(!receivingManualVehicleMode&&!receivingSelectedPdiCaseId)setReceivingVehicleSourceMessage(`VIN ${normaliseReceivingVin(vin)} was not found on Waiting Orders. If this is a genuine unplanned arrival, choose “Vehicle Not Listed — Manual Receiving”.`,'warning');
 }
 
@@ -84,12 +84,20 @@ function enableReceivingManualVehicleMode(){
 function insertReceivingWaitingOrdersPanel(){
   if(document.getElementById('receivingWaitingOrderPanel'))return;const details=document.getElementById('receivingDetails');if(!details)return;
   const panel=document.createElement('section');panel.id='receivingWaitingOrderPanel';panel.className='card';
-  panel.innerHTML=`<h2>Vehicle Source — Waiting Orders</h2><p class="hint">Select the arriving vehicle from PDI Waiting Orders. Existing order data will populate automatically. Vehicle details remain editable so receiving staff can correct missing or inaccurate information.</p><div class="grid"><label>Waiting Vehicle<select id="receivingWaitingOrderSelect"><option value="">Loading Waiting Orders...</option></select></label><div style="align-self:end;padding-bottom:4px"><strong id="receivingWaitingOrderCount">Loading...</strong></div></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button type="button" id="receivingManualVehicleButton" class="ghost">Vehicle Not Listed — Manual Receiving</button><button type="button" id="receivingRefreshWaitingOrdersButton" class="ghost">Refresh Waiting Orders</button></div><p id="receivingVehicleSourceMessage" style="margin:12px 0 0;font-weight:700"></p>`;
+  panel.innerHTML=`<h2>Vehicle Source — Waiting Orders</h2><p class="hint">Select the arriving vehicle from PDI Waiting Orders. Existing order data will populate automatically. Vehicle details remain editable so receiving staff can correct missing or inaccurate information.</p><div class="grid"><label>Search Waiting Orders<input id="receivingWaitingOrderSearch" type="search" placeholder="Search VIN, stock number, vehicle or PO..." autocomplete="off"></label><label>Waiting Vehicle<select id="receivingWaitingOrderSelect"><option value="">Loading Waiting Orders...</option></select></label><div style="align-self:end;padding-bottom:4px"><strong id="receivingWaitingOrderCount">Loading...</strong></div></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button type="button" id="receivingManualVehicleButton" class="ghost">Vehicle Not Listed — Manual Receiving</button><button type="button" id="receivingRefreshWaitingOrdersButton" class="ghost">Refresh Waiting Orders</button></div><p id="receivingVehicleSourceMessage" style="margin:12px 0 0;font-weight:700"></p>`;
   details.parentNode.insertBefore(panel,details);
   document.getElementById('receivingWaitingOrderSelect')?.addEventListener('change',e=>selectReceivingWaitingOrder(e.target.value));
+  document.getElementById('receivingWaitingOrderSearch')?.addEventListener('input',e=>{
+    const query=e.target.value.trim().toLowerCase();
+    const select=document.getElementById('receivingWaitingOrderSelect');
+    if(!select)return;
+    const matches=receivingWaitingOrders.filter(x=>[x.vin,x.stock_no,x.make,x.model,x.oem_supplier,x.order_reference,x.allocated_customer].join(' ').toLowerCase().includes(query));
+    select.innerHTML='<option value="">Select a matching Waiting Order...</option>'+matches.slice(0,100).map(x=>'<option value="'+x.id+'">'+receivingWaitingOrderLabel(x).replaceAll('<','&lt;')+'</option>').join('');
+    if(matches.length===1)selectReceivingWaitingOrder(String(matches[0].id));
+  });
   document.getElementById('receivingManualVehicleButton')?.addEventListener('click',enableReceivingManualVehicleMode);
   document.getElementById('receivingRefreshWaitingOrdersButton')?.addEventListener('click',async()=>{await loadReceivingPdiVehicleIndex();setReceivingVehicleSourceMessage('Waiting Orders refreshed.','success');});
-  const vin=document.getElementById('receivingVin');vin?.addEventListener('change',handleReceivingVinLookup);vin?.addEventListener('blur',handleReceivingVinLookup);
+  const vin=document.getElementById('receivingVin');vin?.addEventListener('input',()=>{if(normaliseReceivingVin(vin.value).length>=12)handleReceivingVinLookup();});vin?.addEventListener('change',handleReceivingVinLookup);vin?.addEventListener('blur',handleReceivingVinLookup);
   setReceivingCoreVehicleFieldsLocked();
   setReceivingVehicleSourceMessage('Select a vehicle from Waiting Orders, or use Manual Receiving for a genuine unplanned arrival. Vehicle details remain editable.','info');
 }
@@ -97,7 +105,7 @@ function insertReceivingWaitingOrdersPanel(){
 async function updateLinkedPdiCaseFromReceiving(record){
   if(!record||record.status!=='Completed')return true;const f=record.fields||{};const now=record.completedAt||new Date().toISOString();const vin=normaliseReceivingVin(f.receivingVin);if(!vin)throw new Error('VIN is required before the vehicle can enter the PDI workflow.');
   const {data:live,error:liveError}=await supabaseClient.from('pdi_cases').select('id,receiving_no,vin,order_status,received_at').ilike('vin',f.receivingVin.trim());if(liveError)throw liveError;
-  const conflict=(live||[]).find(x=>x.id!==receivingSelectedPdiCaseId);if(conflict)throw new Error(`VIN ${vin} already exists in Vehicle Suite. Duplicate vehicle creation blocked.`);
+  const conflict=(live||[]).find(x=>String(x.id)!==String(receivingSelectedPdiCaseId));if(conflict)throw new Error(`VIN ${vin} already exists in Vehicle Suite. Duplicate vehicle creation blocked.`);
   const payload={receiving_no:record.receivingNo,stock_no:f.stockNumber||null,vin:f.receivingVin||null,make:f.receivingMake||null,model:f.receivingModel||null,oem_supplier:f.receivingSupplier||null,received_at:now,order_status:'Received',workflow_status:'In Progress',current_phase:1,current_step:1,current_step_started_at:now,updated_at:now};
   if(receivingSelectedPdiCaseId){const {error}=await supabaseClient.from('pdi_cases').update(payload).eq('id',receivingSelectedPdiCaseId);if(error)throw error;}
   else{if(!receivingManualVehicleMode)throw new Error('Vehicle is not linked to Waiting Orders. Use Manual Receiving only for a genuine unplanned arrival.');const {data,error}=await supabaseClient.from('pdi_cases').insert({...payload,order_reference:f.deliveryReference||null,ordered_at:null,started_at:now}).select('id').single();if(error)throw error;receivingSelectedPdiCaseId=data?.id||null;}
