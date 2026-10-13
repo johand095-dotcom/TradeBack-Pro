@@ -131,6 +131,7 @@ async function signInReceivingUser() {
   }
 
   await syncReceivingDatabaseFromSupabase();
+  await refreshReceivingAdministratorAccess();
 }
 
 
@@ -165,6 +166,7 @@ async function initReceivingCloudAccess() {
     initReceiving();
 
     await syncReceivingDatabaseFromSupabase();
+    await refreshReceivingAdministratorAccess();
 
 } else {
     showReceivingLogin();
@@ -2368,6 +2370,17 @@ function restoreReceivingSignature(dataUrl) {
   img.src=dataUrl;
 }
 
+let receivingIsAdministrator=false;
+async function refreshReceivingAdministratorAccess(){
+  try{
+    const {data:auth}=await supabaseClient.auth.getUser();
+    if(!auth?.user){receivingIsAdministrator=false;return;}
+    const {data,error}=await supabaseClient.from('user_profiles')
+      .select('is_admin,is_active').eq('user_id',auth.user.id).single();
+    receivingIsAdministrator=!error&&data?.is_admin===true&&data?.is_active===true;
+    renderReceivingLibrary();
+  }catch(error){receivingIsAdministrator=false;console.error('Receiving admin access check failed:',error);}
+}
 function renderReceivingLibrary() {
   const body = document.getElementById('receivingLibraryBody');
   const search = receivingField('receivingLibrarySearch').trim().toLowerCase();
@@ -2383,7 +2396,7 @@ function renderReceivingLibrary() {
   }
   body.innerHTML = records.map(record => {
     const f=record.fields||{};
-    return `<tr><td><strong>${record.receivingNo}</strong></td><td>${f.stockNumber||'-'}</td><td>${[f.receivingMake,f.receivingModel].filter(Boolean).join(' ')||'-'}</td><td>${f.receivingVin||'-'}</td><td>${record.result||'-'}</td><td>${record.status||'Draft'}</td><td><button type="button" onclick="openReceiving('${record.receivingNo}')">Open</button> ${record.status==='Completed'? `<button type="button" class="ghost" onclick="reprintSavedReceivingReport('${record.receivingNo}')">View / Print Report</button>`:''} <button type="button" class="ghost" onclick="deleteReceiving('${record.receivingNo}')">Delete</button></td></tr>`;
+    return `<tr><td><strong>${record.receivingNo}</strong></td><td>${f.stockNumber||'-'}</td><td>${[f.receivingMake,f.receivingModel].filter(Boolean).join(' ')||'-'}</td><td>${f.receivingVin||'-'}</td><td>${record.result||'-'}</td><td>${record.status||'Draft'}</td><td><button type="button" onclick="openReceiving('${record.receivingNo}')">Open</button> ${receivingIsAdministrator&&record.status==='Completed'?`<button type="button" class="ghost" onclick="recoverCompletedReceivingToPdi('${record.receivingNo}')">Recover to PDI</button>`:''} ${record.status==='Completed'? `<button type="button" class="ghost" onclick="reprintSavedReceivingReport('${record.receivingNo}')">View / Print Report</button>`:''} <button type="button" class="ghost" onclick="deleteReceiving('${record.receivingNo}')">Delete</button></td></tr>`;
   }).join('');
 }
 
