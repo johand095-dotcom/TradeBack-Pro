@@ -169,15 +169,22 @@ async function recoverCompletedReceivingToPdi(receivingNo){
   if(!confirm('ADMINISTRATOR RECOVERY\\n\\nReceiving: '+receivingNo+
     '\\nVIN: '+(record.fields?.receivingVin||'-')+
     '\\n\\nThis will attempt to link the completed inspection to PDI. Continue?'))return;
+  const audit=async(outcome,caseId=null)=>{
+    const {error}=await supabaseClient.rpc('log_receiving_pdi_recovery',{
+      p_receiving_no:receivingNo,p_vin:normaliseReceivingVin(record.fields?.receivingVin),
+      p_pdi_case_id:caseId,p_reason:reason.trim(),p_outcome:outcome
+    });
+    if(error)throw new Error('Recovery audit unavailable: '+error.message);
+  };
+  try{await audit('Requested');}catch(error){alert(error.message);return;}
   const priorId=receivingSelectedPdiCaseId,priorManual=receivingManualVehicleMode;
   try{
     receivingSelectedPdiCaseId=record.fields?.receivingPdiCaseId||null;
     receivingManualVehicleMode=record.fields?.receivingVehicleSource==='Manual';
     await updateLinkedPdiCaseFromReceiving(record);
-    console.info('ADMIN PDI RECOVERY', {receivingNo,vin:record.fields?.receivingVin,
-      admin:user.id,adminName:profile.full_name,reason:reason.trim(),at:new Date().toISOString()});
-    alert('PDI link verified or recovered. Please confirm the vehicle in PDI.');
-  }catch(error){console.error('PDI recovery failed:',error);alert('Recovery stopped: '+(error?.message||'Unknown error'));}
+    await audit('Succeeded',receivingSelectedPdiCaseId||null);
+    alert('PDI link verified or recovered and audited. Please confirm the vehicle in PDI.');
+  }catch(error){console.error('PDI recovery failed:',error);try{await audit('Failed: '+String(error?.message||'Unknown error').slice(0,150));}catch(auditError){console.error('Recovery failure audit failed:',auditError);}alert('Recovery stopped: '+(error?.message||'Unknown error'));}
   finally{receivingSelectedPdiCaseId=priorId;receivingManualVehicleMode=priorManual;}
 }
 window.recoverCompletedReceivingToPdi=recoverCompletedReceivingToPdi;
