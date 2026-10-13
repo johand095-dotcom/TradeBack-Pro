@@ -2503,16 +2503,8 @@ async function generateReceivingReport() {
       );
     }
 
-    if(
-      typeof window.updateLinkedPdiCaseFromReceiving ===
-      'function'
-    ){
-      await window.updateLinkedPdiCaseFromReceiving(record);
-    } else {
-      throw new Error(
-        'PDI handoff service is not available. Refresh the page and try again.'
-      );
-    }
+    // saveReceivingRecordToCloud is wrapped by the Waiting Orders integration,
+    // which performs the PDI handover once. Never repeat it here.
 
     localStorage.setItem(
       RECEIVING_DRAFT_KEY,
