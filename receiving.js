@@ -2383,7 +2383,7 @@ function renderReceivingLibrary() {
   }
   body.innerHTML = records.map(record => {
     const f=record.fields||{};
-    return `<tr><td><strong>${record.receivingNo}</strong></td><td>${f.stockNumber||'-'}</td><td>${[f.receivingMake,f.receivingModel].filter(Boolean).join(' ')||'-'}</td><td>${f.receivingVin||'-'}</td><td>${record.result||'-'}</td><td>${record.status||'Draft'}</td><td><button type="button" onclick="openReceiving('${record.receivingNo}')">Open</button> <button type="button" class="ghost" onclick="deleteReceiving('${record.receivingNo}')">Delete</button></td></tr>`;
+    return `<tr><td><strong>${record.receivingNo}</strong></td><td>${f.stockNumber||'-'}</td><td>${[f.receivingMake,f.receivingModel].filter(Boolean).join(' ')||'-'}</td><td>${f.receivingVin||'-'}</td><td>${record.result||'-'}</td><td>${record.status||'Draft'}</td><td><button type="button" onclick="openReceiving('${record.receivingNo}')">Open</button> ${record.status==='Completed'? `<button type="button" class="ghost" onclick="reprintSavedReceivingReport('${record.receivingNo}')">View / Print Report</button>`:''} <button type="button" class="ghost" onclick="deleteReceiving('${record.receivingNo}')">Delete</button></td></tr>`;
   }).join('');
 }
 
@@ -2440,6 +2440,43 @@ async function buildReceivingReport() {
     <h2>Receiving Controller Signature</h2><img style="max-width:320px;border:1px solid #999" src="${document.getElementById('receivingSignaturePad').toDataURL()}" />
   `;
   return {report,metrics};
+}
+
+async function reprintSavedReceivingReport(receivingNo) {
+  const record=getAllReceivingRecords().find(r=>r.receivingNo===receivingNo);
+  if(!record||record.status!=='Completed'){
+    alert('Only completed Receiving reports can be reprinted.');return;
+  }
+  const win=window.open('','_blank');
+  if(!win){alert('Please allow pop-ups to view the report.');return;}
+  win.document.write('<!doctype html><title>Loading saved Receiving report</title><p>Loading saved inspection...</p>');
+  win.document.close();
+  try{
+    // Read-only reconstruction; never save, complete, or transfer the vehicle.
+    const originalFields=collectReceivingFields();
+    const originalState=receivingState;
+    const originalSignature=document.getElementById('receivingSignaturePad')?.toDataURL();
+    try{
+      for(const [id,value] of Object.entries(record.fields||{})){
+        const el=document.getElementById(id);
+        if(el&&'value' in el)el.value=value??'';
+      }
+      receivingState=record.state||{items:{},arrivalPhotos:{}};
+      const {report}=await buildReceivingReport();
+      win.document.open();
+      win.document.write('<!doctype html><html><head><title>Receiving '+receivingNo+'</title><style>body{font-family:Arial;margin:18px}@media print{button{display:none}}</style></head><body><button onclick="window.print()">Print / Save as PDF</button>'+report.innerHTML+'</body></html>');
+      win.document.close();
+    }finally{
+      for(const [id,value] of Object.entries(originalFields)){
+        const el=document.getElementById(id);
+        if(el&&'value' in el)el.value=value??'';
+      }
+      receivingState=originalState;
+    }
+  }catch(error){
+    console.error('Saved report retrieval failed:',error);
+    win.document.body.textContent='Unable to load saved report: '+(error?.message||'Unknown error');
+  }
 }
 
 async function generateReceivingReport() {
