@@ -102,7 +102,7 @@ function insertReceivingWaitingOrdersPanel(){
   setReceivingVehicleSourceMessage('Select a vehicle from Waiting Orders, or use Manual Receiving for a genuine unplanned arrival. Vehicle details remain editable.','info');
 }
 
-async function updateLinkedPdiCaseFromReceiving(record){
+async function updateLinkedPdiCaseFromReceiving(record, options={}){
   if(!record||record.status!=='Completed')throw new Error('Only completed inspections may enter PDI.');
   const f=record.fields||{}, vin=normaliseReceivingVin(f.receivingVin);
   if(!vin)throw new Error('VIN is required before PDI handover.');
@@ -137,7 +137,7 @@ async function updateLinkedPdiCaseFromReceiving(record){
     receivingSelectedPdiCaseId=existing.id;
   }else{
     if(receivingSelectedPdiCaseId)throw new Error('Selected Waiting Order could not be verified in PDI. Refresh orders and retry.');
-    if(!receivingManualVehicleMode&&f.receivingVehicleSource!=='Manual')
+    if(!options.administratorRecovery&&!receivingManualVehicleMode&&f.receivingVehicleSource!=='Manual')
       throw new Error('No matching Waiting Order found. Use Manual Receiving for genuinely unplanned arrivals.');
     const {data,error}=await supabaseClient.from('pdi_cases')
       .insert({...payload,order_reference:f.deliveryReference||null,ordered_at:null,started_at:now})
@@ -181,7 +181,7 @@ async function recoverCompletedReceivingToPdi(receivingNo){
   try{
     receivingSelectedPdiCaseId=record.fields?.receivingPdiCaseId||null;
     receivingManualVehicleMode=record.fields?.receivingVehicleSource==='Manual';
-    await updateLinkedPdiCaseFromReceiving(record);
+    await updateLinkedPdiCaseFromReceiving(record,{administratorRecovery:true});
     await audit('Succeeded',receivingSelectedPdiCaseId||null);
     alert('PDI link verified or recovered and audited. Please confirm the vehicle in PDI.');
   }catch(error){console.error('PDI recovery failed:',error);try{await audit('Failed: '+String(error?.message||'Unknown error').slice(0,150));}catch(auditError){console.error('Recovery failure audit failed:',auditError);}alert('Recovery stopped: '+(error?.message||'Unknown error'));}
