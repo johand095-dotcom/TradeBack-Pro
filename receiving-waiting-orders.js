@@ -151,6 +151,37 @@ async function updateLinkedPdiCaseFromReceiving(record){
 
 window.updateLinkedPdiCaseFromReceiving = updateLinkedPdiCaseFromReceiving;
 
+async function recoverCompletedReceivingToPdi(receivingNo){
+  const {data:auth}=await supabaseClient.auth.getUser();
+  const user=auth?.user;
+  if(!user){alert('Please sign in.');return;}
+  const {data:profile,error:profileError}=await supabaseClient.from('user_profiles')
+    .select('is_admin,is_active,full_name').eq('user_id',user.id).single();
+  if(profileError||!profile?.is_admin||!profile?.is_active){
+    alert('Only an active administrator may recover a vehicle to PDI.');return;
+  }
+  const record=getAllReceivingRecords().find(x=>x.receivingNo===receivingNo);
+  if(!record||record.status!=='Completed'){
+    alert('Only completed Receiving inspections can be recovered.');return;
+  }
+  const reason=prompt('Reason for exceptional PDI recovery (required):');
+  if(!reason||reason.trim().length<10){alert('Please provide a reason of at least 10 characters.');return;}
+  if(!confirm('ADMINISTRATOR RECOVERY\\n\\nReceiving: '+receivingNo+
+    '\\nVIN: '+(record.fields?.receivingVin||'-')+
+    '\\n\\nThis will attempt to link the completed inspection to PDI. Continue?'))return;
+  const priorId=receivingSelectedPdiCaseId,priorManual=receivingManualVehicleMode;
+  try{
+    receivingSelectedPdiCaseId=record.fields?.receivingPdiCaseId||null;
+    receivingManualVehicleMode=record.fields?.receivingVehicleSource==='Manual';
+    await updateLinkedPdiCaseFromReceiving(record);
+    console.info('ADMIN PDI RECOVERY', {receivingNo,vin:record.fields?.receivingVin,
+      admin:user.id,adminName:profile.full_name,reason:reason.trim(),at:new Date().toISOString()});
+    alert('PDI link verified or recovered. Please confirm the vehicle in PDI.');
+  }catch(error){console.error('PDI recovery failed:',error);alert('Recovery stopped: '+(error?.message||'Unknown error'));}
+  finally{receivingSelectedPdiCaseId=priorId;receivingManualVehicleMode=priorManual;}
+}
+window.recoverCompletedReceivingToPdi=recoverCompletedReceivingToPdi;
+
 function initialiseReceivingWaitingOrderIntegration(){
   insertReceivingWaitingOrdersPanel();setReceivingCoreVehicleFieldsLocked();
   const originalCollect=window.collectReceivingFields;if(typeof originalCollect==='function')window.collectReceivingFields=function(){return {...originalCollect(),receivingPdiCaseId:receivingSelectedPdiCaseId||'',receivingVehicleSource:receivingSelectedPdiCaseId?'Waiting Order':(receivingManualVehicleMode?'Manual':'')};};
