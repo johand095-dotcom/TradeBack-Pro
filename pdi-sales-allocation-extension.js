@@ -31,7 +31,8 @@
   function isSalesAdmin() {
     try {
       const roles = normaliseRoles(pdiUserProfile);
-      return roles.includes('sales admin');
+      return (pdiUserProfile?.is_active === true && pdiUserProfile?.is_admin === true) ||
+        (pdiUserProfile?.is_active === true && roles.includes('sales admin'));
     } catch (_) {
       return false;
     }
