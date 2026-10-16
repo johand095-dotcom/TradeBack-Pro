@@ -15,7 +15,7 @@ function setup(){
  const section=document.createElement('section');section.id='bulkPdiSection';section.className='card';
  section.style.cssText='display:none;margin:16px 0;padding:20px;border:1px solid #dbe3ed;border-radius:16px;background:white';
  section.innerHTML='<h2>Bulk Stocktake Import <small style="font-size:12px">Administrator only</small></h2>'+
- '<p>For vehicles physically on site. Creates PDI records as <b>Received / In Progress</b>, without generating Receiving inspections.</p>'+
+ '<p>For vehicles physically on site. Creates PDI records as <b>Received / In Progress</b> with a unique RCV tracking number, without generating Receiving inspections.</p>'+
  '<input id="bulkPdiFile" type="file" accept=".xlsx,.xls" aria-label="Choose Excel stocktake file">'+
  '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><button id="bulkPdiPreview" type="button">Validate & Preview</button>'+
  '<button id="bulkPdiImport" type="button" disabled>Import Eligible Vehicles</button>'+
@@ -89,14 +89,10 @@ async function importRows(){
    const {data:check,error:checkError}=await supabaseClient.from('pdi_cases').select('id').ilike('vin',x.vin).limit(1);
    if(checkError){x.status='Error: '+checkError.message;draw();continue;}
    if(check?.length){x.status='Skipped: PDI case '+check[0].id;known.add(x.vin);draw();continue;}
-   const now=new Date().toISOString();
-   const {data,error}=await supabaseClient.from('pdi_cases').insert({
-    vin:x.vin,receiving_no:null,stock_no:null,order_status:'Received',
-    workflow_status:'In Progress',current_phase:1,current_step:1,
-    started_at:now,current_step_started_at:now,updated_at:now,
-    ordered_at:null,received_at:null
-   }).select('id').single();
-   x.status=error?'Error: '+error.message:'Imported: PDI case '+data.id;
+   const {data,error}=await supabaseClient.rpc('import_stocktake_pdi_vehicle',{p_vin:x.vin});
+   const result=Array.isArray(data)?data[0]:data;
+   x.status=error?'Error: '+error.message:(result?.outcome==='Imported'?'Imported: '+result.rcv_number+' / PDI case '+result.pdi_case_id:'Skipped: '+(result?.outcome||'Existing VIN')+' / PDI case '+(result?.pdi_case_id||'?'));
+   x.allocatedRcv=result?.rcv_number||'';
    if(!error)known.add(x.vin);
    draw();
   }
@@ -107,7 +103,7 @@ async function importRows(){
  finally{busy=false;$('bulkPdiPreview').disabled=false;draw();}
 }
 function exportCsv(){
- const records=[['Excel Row','VIN','Receiving Reference','PDI Reference','Result'],...items.map(x=>[x.row,x.vin,x.receiving,x.pdi,x.status])];
+ const records=[['Excel Row','VIN','Receiving Reference','PDI Reference','Allocated RCV','Result'],...items.map(x=>[x.row,x.vin,x.receiving,x.pdi,x.allocatedRcv||'',x.status])];
  const csv=records.map(r=>r.map(v=>'"'+trim(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download='ELT-PDI-Stocktake-'+new Date().toISOString().slice(0,10)+'.csv';a.click();
