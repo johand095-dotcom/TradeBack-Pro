@@ -1,7 +1,7 @@
 /* ELT PDI — controlled stocktake bulk import. Test on development branch first. */
 (function(){
 'use strict';
-let items=[],busy=false;
+let items=[],busy=false,singleTestPassed=false;
 const $=id=>document.getElementById(id);
 const trim=x=>String(x??'').trim();
 const vin=x=>trim(x).toUpperCase().replace(/\s+/g,'');
@@ -18,24 +18,27 @@ function setup(){
  '<p>For vehicles physically on site. Creates PDI records as <b>Received / In Progress</b> with a unique RCV tracking number, without generating Receiving inspections.</p>'+
  '<input id="bulkPdiFile" type="file" accept=".xlsx,.xls" aria-label="Choose Excel stocktake file">'+
  '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><button id="bulkPdiPreview" type="button">Validate & Preview</button>'+
- '<button id="bulkPdiImport" type="button" disabled>Import Eligible Vehicles</button>'+
+ '<button id="bulkPdiSingle" type="button" disabled>Import Selected Test Vehicle</button>'+ 
+ '<button id="bulkPdiImport" type="button" disabled>Import Remaining Eligible Vehicles</button>'+
  '<button id="bulkPdiExport" type="button" disabled>Download Results CSV</button></div>'+
  '<label><input type="checkbox" id="bulkPdiApprove"> I have reviewed the eligible vehicles and approve this import.</label>'+
  '<p id="bulkPdiMessage" role="status"></p><p id="bulkPdiSummary" style="font-weight:bold"></p>'+
- '<div style="max-height:400px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th>Row</th><th>VIN</th><th>Receiving</th><th>PDI</th><th>Result</th></tr></thead><tbody id="bulkPdiRows"></tbody></table></div>'+
+ '<div style="max-height:400px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th>Test</th><th>Row</th><th>VIN</th><th>Receiving</th><th>PDI</th><th>Result</th></tr></thead><tbody id="bulkPdiRows"></tbody></table></div>'+
  '<p style="font-size:12px;color:#64748b">Rows with existing Receiving/PDI references require manual review. A stocktake import does not certify an inspection or establish the actual vehicle arrival date.</p>';
  anchor.insertAdjacentElement('beforebegin',section);
- $('bulkPdiPreview').onclick=preview;$('bulkPdiImport').onclick=importRows;$('bulkPdiExport').onclick=exportCsv;
+ $('bulkPdiPreview').onclick=preview;$('bulkPdiSingle').onclick=importSingle;$('bulkPdiImport').onclick=importRows;$('bulkPdiExport').onclick=exportCsv;
  $('bulkPdiApprove').onchange=refreshButton;
- $('bulkPdiFile').onchange=()=>{items=[];$('bulkPdiApprove').checked=false;$('bulkPdiExport').disabled=true;draw();};
+ $('bulkPdiFile').onchange=()=>{singleTestPassed=false;items=[];$('bulkPdiApprove').checked=false;$('bulkPdiExport').disabled=true;draw();};
  const visibility=()=>{section.style.display=admin()?'block':'none';};
  visibility();setInterval(visibility,2000);
 }
 function refreshButton(){
- $('bulkPdiImport').disabled=busy||!admin()||!$('bulkPdiApprove').checked||!items.some(x=>x.status==='Eligible');
+ const ready=!busy&&admin()&&$('bulkPdiApprove').checked&&items.some(x=>x.status==='Eligible');
+ $('bulkPdiSingle').disabled=!ready;
+ $('bulkPdiImport').disabled=!ready||!singleTestPassed;
 }
 function draw(){
- $('bulkPdiRows').innerHTML=items.map(x=>'<tr style="border-top:1px solid #ddd"><td>'+x.row+'</td><td>'+escape(x.vin)+'</td><td>'+escape(x.receiving)+'</td><td>'+escape(x.pdi)+'</td><td>'+escape(x.status)+'</td></tr>').join('');
+ $('bulkPdiRows').innerHTML=items.map(x=>'<tr style="border-top:1px solid #ddd"><td>'+(x.status==='Eligible'?'<input type="radio" name="bulkPdiTestChoice" value="'+x.row+'" aria-label="Select row '+x.row+' for test">':'')+'</td><td>'+x.row+'</td><td>'+escape(x.vin)+'</td><td>'+escape(x.receiving)+'</td><td>'+escape(x.pdi)+'</td><td>'+escape(x.status)+'</td></tr>').join('');
  const counts={};items.forEach(x=>counts[x.status]=(counts[x.status]||0)+1);
  $('bulkPdiSummary').textContent=items.length?'Total '+items.length+' | '+Object.entries(counts).map(([k,v])=>k+': '+v).join(' | '):'';
  refreshButton();
@@ -50,7 +53,7 @@ async function allCases(){
 async function preview(){
  if(!admin()){say('Administrator access required.',true);return;}
  const file=$('bulkPdiFile').files[0];if(!file){say('Choose the Excel file first.',true);return;}
- busy=true;items=[];draw();$('bulkPdiApprove').checked=false;
+ busy=true;singleTestPassed=false;items=[];draw();$('bulkPdiApprove').checked=false;
  try{
   if(typeof XLSX==='undefined')throw new Error('Excel reader unavailable. Reload the page.');
   const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
@@ -82,10 +85,25 @@ async function preview(){
  }catch(e){items=[];draw();say('Preview failed: '+e.message,true);}
  finally{busy=false;refreshButton();}
 }
+async function importSingle(){
+ if(!admin()||!$('bulkPdiApprove').checked||busy)return;
+ const selected=document.querySelector('input[name="bulkPdiTestChoice"]:checked');
+ if(!selected){say('Select one eligible vehicle using the Test radio button in its row.',true);return;}
+ const row=items.find(x=>String(x.row)===selected.value&&x.status==='Eligible');
+ if(!row){say('Selected vehicle is no longer eligible. Validate again.',true);return;}
+ await importSelected([row],true);
+}
 async function importRows(){
  if(!admin()||!$('bulkPdiApprove').checked||busy)return;
  const eligible=items.filter(x=>x.status==='Eligible');
- if(!eligible.length||!confirm('Import '+eligible.length+' missing vehicles into PDI as Received / In Progress?'))return;
+ if(!singleTestPassed){say('First import and verify one test vehicle before using the bulk import.',true);return;}
+ if(!eligible.length)return;
+ await importSelected(eligible,false);
+}
+async function importSelected(eligible,isTest){
+ if(!eligible.length||!admin()||busy||!$('bulkPdiApprove').checked)return;
+ const message=isTest?'TEST IMPORT: create only VIN '+eligible[0].vin+' as Received / In Progress with a new RCV number? This creates a real PDI record.':'BULK IMPORT: create '+eligible.length+' remaining PDI records with unique RCV numbers?';
+ if(!confirm(message))return;
  busy=true;refreshButton();$('bulkPdiPreview').disabled=true;
  try{
   const known=new Set((await allCases()).filter(x=>x.vin).map(x=>vin(x.vin)));
@@ -101,7 +119,10 @@ async function importRows(){
    if(!error)known.add(x.vin);
    draw();
   }
-  say('Import finished. Download the results CSV and review skipped or failed rows.');
+  if(isTest){
+   singleTestPassed=eligible[0].status.startsWith('Imported:');
+   say(singleTestPassed?'Test vehicle imported. Verify the allocated RCV and PDI case in the dashboard BEFORE importing the remaining vehicles.':'Test vehicle not imported. Review the error and do not proceed.',!singleTestPassed);
+  }else say('Bulk import finished. Download the results CSV and review skipped or failed rows.');
   $('bulkPdiExport').disabled=false;
   if(typeof loadPdiCases==='function')await loadPdiCases();
  }catch(e){say('Import interrupted: '+e.message+'. Check results before retrying.',true);}
