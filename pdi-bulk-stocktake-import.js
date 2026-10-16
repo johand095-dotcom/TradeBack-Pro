@@ -81,7 +81,23 @@ async function preview(){
   }).filter(Boolean);
   const known=new Map((await allCases()).filter(x=>x.vin).map(x=>[vin(x.vin),x.id]));
   items.forEach(x=>{if(known.has(x.vin))x.status='Skip: existing PDI case '+known.get(x.vin);});
-  draw();say('Preview complete. No database changes made. Review exclusions and approve eligible rows.');
+  // Restore the completed single-vehicle test from the durable server-side audit.
+  // This must be checked against the VINs in the uploaded sheet; local browser state is not trusted.
+  const {data:authData,error:authError}=await supabaseClient.auth.getUser();
+  if(authError)throw authError;
+  const adminId=authData?.user?.id;
+  if(!adminId)throw new Error('Please sign in again before importing.');
+  const {data:audits,error:auditError}=await supabaseClient.from('pdi_stocktake_import_audit')
+    .select('vin,pdi_case_id,receiving_no,imported_at')
+    .eq('admin_user_id',adminId).order('imported_at',{ascending:false}).limit(100);
+  if(auditError){
+    singleTestPassed=false;
+    draw();say('Preview complete, but import audit could not be verified: '+auditError.message+'. Remaining import remains locked.',true);
+    return;
+  }
+  const fileVins=new Set(items.map(x=>x.vin));
+  singleTestPassed=(audits||[]).some(a=>fileVins.has(vin(a.vin))&&known.get(vin(a.vin))===a.pdi_case_id);
+  draw();say(singleTestPassed?'Preview complete. Previous test import verified against audit. You may approve and import the remaining eligible vehicles.':'Preview complete. No verified test import found for this file; remaining import remains locked.');
  }catch(e){items=[];draw();say('Preview failed: '+e.message,true);}
  finally{busy=false;refreshButton();}
 }
