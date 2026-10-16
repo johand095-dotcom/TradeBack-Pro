@@ -57,9 +57,14 @@ async function preview(){
   const matrix=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false});
   const headings=(matrix[0]||[]).map(vin);
   const vcol=Math.max(0,headings.findIndex(x=>x==='VIN'||x==='CHASSIS NUMBER'));
-  const vinCol=headings.some(x=>x==='VIN'||x==='CHASSIS NUMBER')?vcol:1;
-  const recCol=headings.indexOf('RECEIVING')>=0?headings.indexOf('RECEIVING'):2;
-  const pdiCol=headings.indexOf('PDI')>=0?headings.indexOf('PDI'):3;
+  const recHeader=headings.indexOf('RECEIVING');
+  const pdiHeader=headings.indexOf('PDI');
+  // XLSX may start the worksheet range at column B when column A is empty.
+  // The supplied stocktake sheet has an unlabelled VIN column immediately before Receiving.
+  const vinCol=headings.some(x=>x==='VIN'||x==='CHASSIS NUMBER')?vcol:(recHeader>0?recHeader-1:0);
+  const recCol=recHeader>=0?recHeader:vinCol+1;
+  const pdiCol=pdiHeader>=0?pdiHeader:recCol+1;
+  if(recHeader<0||pdiHeader<0||vinCol===recCol||vinCol===pdiCol)throw new Error('Cannot identify VIN, Receiving and PDI columns safely.');
   const seen=new Set();
   items=matrix.slice(1).map((cells,i)=>{
    const v=vin(cells[vinCol]),receiving=trim(cells[recCol]),pdi=trim(cells[pdiCol]);
