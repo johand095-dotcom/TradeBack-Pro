@@ -57,13 +57,34 @@ begin
    where upper(regexp_replace(coalesce(to_jsonb(r)->'fields'->>'receivingVin',''),'\s+','','g'))=v_vin)
  then raise exception 'VIN exists in Receiving; investigate before importing'; end if;
 
- -- Only link a salesperson account on an unambiguous active exact-name match.
- -- A non-matching name is retained as text for later reconciliation.
- select count(*),min(u.user_id) into v_matches,v_sales_id
- from public.user_profiles u
- where u.is_active=true and v_sales is not null
-   and lower(btrim(u.full_name))=lower(v_sales);
- if v_matches<>1 then v_sales_id:=null; end if;
+ -- Explicit mapping of stocktake shorthand to approved active Sales Person profiles.
+ -- Never silently store an unlinked or ambiguous salesperson.
+ if v_class in ('Sold','Allocated') then
+   if v_sales is null then raise exception 'Salesperson required for Sold/Allocated'; end if;
+   v_sales := case lower(v_sales)
+     when 'marc' then 'Marc Jones'
+     when 'ashley' then 'Ashley Ramroop'
+     when 'corlia' then 'Corlia Du Toit'
+     when 'esme' then 'Esme Harmse'
+     when 'gavin' then 'Gavin Aboud'
+     when 'willie' then 'Willie Froneman'
+     when 'boni' then 'Boni'
+     when 'llewellyn' then 'Llewellyn'
+     when 'venecia' then 'Venecia'
+     else v_sales end;
+   select count(*),min(u.user_id) into v_matches,v_sales_id
+   from public.user_profiles u
+   where u.is_active=true and 'Sales Person'=any(u.roles)
+     and lower(btrim(u.full_name))=lower(v_sales);
+   -- Venecia is assigned Sales rather than Sales Person in the live directory.
+   if v_matches=0 and lower(v_sales)='venecia' then
+     select count(*),min(u.user_id) into v_matches,v_sales_id
+     from public.user_profiles u
+     where u.is_active=true and 'Sales'=any(u.roles)
+       and lower(btrim(u.full_name))='venecia';
+   end if;
+   if v_matches<>1 then raise exception 'Salesperson does not match exactly one active sales user: %',v_sales; end if;
+ end if;
 
  loop
    v_counter:=v_counter+1;
