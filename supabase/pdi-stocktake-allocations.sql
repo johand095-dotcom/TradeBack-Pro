@@ -94,3 +94,23 @@ begin
 end $$;
 revoke all on function public.import_stocktake_pdi_allocated(text,text,text,text,text,text) from public,anon;
 grant execute on function public.import_stocktake_pdi_allocated(text,text,text,text,text,text) to authenticated;
+
+-- Test gate is restricted to successful imports performed using the new allocated RPC.
+create or replace function public.has_stocktake_allocated_test(p_vins text[])
+returns boolean language plpgsql security definer set search_path=public as $$
+begin
+ if auth.uid() is null or not exists (
+   select 1 from public.user_profiles u
+   where u.user_id=auth.uid() and u.is_admin=true and u.is_active=true
+ ) then raise exception 'Active administrator access required'; end if;
+ return exists(
+   select 1 from public.pdi_stocktake_import_audit a
+   join public.pdi_cases c on c.id=a.pdi_case_id
+   where a.admin_user_id=auth.uid()
+     and a.source='Stocktake with make/model/classification/salesperson/customer allocations'
+     and upper(a.vin)=any(p_vins)
+     and upper(c.vin)=upper(a.vin) and c.receiving_no=a.receiving_no
+ );
+end $$;
+revoke all on function public.has_stocktake_allocated_test(text[]) from public,anon;
+grant execute on function public.has_stocktake_allocated_test(text[]) to authenticated;
