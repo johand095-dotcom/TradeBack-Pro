@@ -54,7 +54,7 @@ begin
    return;
  end if;
  if exists (select 1 from public.receivings r
-   where upper(regexp_replace(coalesce(to_jsonb(r)->'fields'->>'receivingVin',''),'\s+','','g'))=v_vin)
+   where upper(regexp_replace(coalesce(r.vin,''),'\s+','','g'))=v_vin)
  then raise exception 'VIN exists in Receiving; investigate before importing'; end if;
 
  -- Explicit mapping of stocktake shorthand to approved active Sales Person profiles.
