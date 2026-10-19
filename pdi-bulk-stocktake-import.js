@@ -38,7 +38,7 @@ function refreshButton(){
  $('bulkPdiImport').disabled=!ready||!singleTestPassed;
 }
 function draw(){
- $('bulkPdiRows').innerHTML=items.map(x=>'<tr style="border-top:1px solid #ddd"><td>'+(x.status==='Eligible'?'<input type="radio" name="bulkPdiTestChoice" value="'+x.row+'" aria-label="Select row '+x.row+' for test">':'')+'</td><td>'+x.row+'</td><td>'+escape(x.vin)+'</td><td>'+escape(x.receiving)+'</td><td>'+escape(x.pdi)+'</td><td>'+escape(x.status)+'</td></tr>').join('');
+ $('bulkPdiRows').innerHTML=items.map(x=>'<tr style="border-top:1px solid #ddd"><td>'+(x.status==='Eligible'?'<input type="radio" name="bulkPdiTestChoice" value="'+x.row+'" aria-label="Select row '+x.row+' for test">':'')+'</td><td>'+x.row+'</td><td>'+escape(x.vin)+'</td><td>'+escape(x.make+' / '+x.model)+'</td><td>'+escape(x.classification)+'</td><td>'+escape(x.salesperson)+'</td><td>'+escape(x.customer)+'</td><td>'+escape(x.status)+'</td></tr>').join('');
  const counts={};items.forEach(x=>counts[x.status]=(counts[x.status]||0)+1);
  $('bulkPdiSummary').textContent=items.length?'Total '+items.length+' | '+Object.entries(counts).map(([k,v])=>k+': '+v).join(' | '):'';
  refreshButton();
@@ -81,6 +81,7 @@ async function preview(){
    else if(!make||!model)status='Review: missing make/model';
    else if(!classification)status='Review: unknown classification';
    else if(['Sold','Allocated'].includes(classification)&&!customer)status='Review: customer required';
+   else if(['Sold','Allocated'].includes(classification)&&!salesperson)status='Review: salesperson required';
    else if(['Stock','Consignment Stock'].includes(classification)&&customer)status='Review: unexpected customer on stock';
    seen.add(v);
    return {row:i+2,vin:v,make,model,salesperson,classification,customer,receiving:'',pdi:'',status};
