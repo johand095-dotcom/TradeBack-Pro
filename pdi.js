@@ -1588,7 +1588,7 @@ const lowPriorityCount =
             (
                 item.stock_classification ||
                 'Stock'
-            ) === 'Stock'
+            ) === 'Stock' || item.stock_classification === 'Consignment Stock'
     ).length;
 
 
@@ -1849,8 +1849,8 @@ ${
 }
                 </div>
               `
-            : classification === 'Stock'
-                ? `<span class="pdi-badge pdi-badge-stock">Stock</span>`
+            : classification === 'Stock' || classification === 'Consignment Stock'
+                ? `<span class="pdi-badge pdi-badge-stock">${classification}</span>`
                 : '-'
 }
 </td>
@@ -2357,7 +2357,7 @@ document
 
                 const enteredValue =
                     prompt(
-                        'Enter the new classification:\n\nStock\nAllocated\nSold',
+                        'Enter the new classification:\n\nStock\nConsignment Stock\nAllocated\nSold',
                         currentClassification
                     );
 
@@ -2372,6 +2372,7 @@ document
 
                 const classificationMap = {
                     stock: 'Stock',
+                    'consignment stock': 'Consignment Stock',
                     allocated: 'Allocated',
                     sold: 'Sold'
                 };
@@ -2383,7 +2384,7 @@ document
 
                 if (!newClassification) {
                     alert(
-                        'Please enter Stock, Allocated or Sold.'
+                        'Please enter Stock, Consignment Stock, Allocated or Sold.'
                     );
                     return;
                 }
@@ -2636,7 +2637,7 @@ ${
                     }
                 </div>
               `
-            : `<span class="pdi-badge pdi-badge-stock">Stock</span>`
+            : `<span class="pdi-badge pdi-badge-stock">${classification === 'Consignment Stock' ? 'Consignment Stock' : 'Stock'}</span>`
 }
 </td>   
 
@@ -2675,9 +2676,8 @@ ${
               </td>
 
               <td>
-                ${getResponsibleForCurrentStep(
-                  item
-                )}
+                <div><strong>Salesperson:</strong> ${escapePdiHtml(item.allocated_salesperson_name || 'Unallocated')}</div>
+                <div style="margin-top:4px;font-size:12px;opacity:.8"><strong>Step responsible:</strong> ${escapePdiHtml(getResponsibleForCurrentStep(item))}</div>
               </td>
 
               <td>

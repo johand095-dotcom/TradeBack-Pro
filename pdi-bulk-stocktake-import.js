@@ -14,8 +14,8 @@ function setup(){
  const anchor=$('preArrivalOrderSection')||$('awaitingArrivalSection');if(!anchor)return;
  const section=document.createElement('section');section.id='bulkPdiSection';section.className='card';
  section.style.cssText='display:none;margin:16px 0;padding:20px;border:1px solid #dbe3ed;border-radius:16px;background:white';
- section.innerHTML='<h2>Bulk Stocktake Import <small style="font-size:12px">Administrator only</small></h2>'+
- '<p>For vehicles physically on site. Creates PDI records as <b>Received / In Progress</b> with a unique RCV tracking number, without generating Receiving inspections.</p>'+
+ section.innerHTML='<h2>Bulk Stocktake Import — Allocations <small style="font-size:12px">Administrator only</small></h2>'+
+ '<p>For vehicles physically on site. Imports make, model, classification, salesperson and customer from the six-column stocktake sheet. Creates PDI records as <b>Received / In Progress</b> with a unique RCV tracking number, without generating Receiving inspections.</p>'+
  '<input id="bulkPdiFile" type="file" accept=".xlsx,.xls" aria-label="Choose Excel stocktake file">'+
  '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><button id="bulkPdiPreview" type="button">Validate & Preview</button>'+
  '<button id="bulkPdiSingle" type="button" disabled>Import Selected Test Vehicle</button>'+ 
@@ -23,8 +23,8 @@ function setup(){
  '<button id="bulkPdiExport" type="button" disabled>Download Results CSV</button></div>'+
  '<label><input type="checkbox" id="bulkPdiApprove"> I have reviewed the eligible vehicles and approve this import.</label>'+
  '<p id="bulkPdiMessage" role="status"></p><p id="bulkPdiSummary" style="font-weight:bold"></p>'+
- '<div style="max-height:400px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th>Test</th><th>Row</th><th>VIN</th><th>Receiving</th><th>PDI</th><th>Result</th></tr></thead><tbody id="bulkPdiRows"></tbody></table></div>'+
- '<p style="font-size:12px;color:#64748b">Rows with existing Receiving/PDI references require manual review. A stocktake import does not certify an inspection or establish the actual vehicle arrival date.</p>';
+ '<div style="max-height:400px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th>Test</th><th>Row</th><th>VIN</th><th>Make / Model</th><th>Classification</th><th>Salesperson</th><th>Customer</th><th>Result</th></tr></thead><tbody id="bulkPdiRows"></tbody></table></div>'+
+ '<p style="font-size:12px;color:#64748b">VINs already present in PDI are skipped; VINs with existing Receiving records are rejected by the server. A stocktake import does not certify an inspection or establish the actual vehicle arrival date.</p>';
  anchor.insertAdjacentElement('beforebegin',section);
  $('bulkPdiPreview').onclick=preview;$('bulkPdiSingle').onclick=importSingle;$('bulkPdiImport').onclick=importRows;$('bulkPdiExport').onclick=exportCsv;
  $('bulkPdiApprove').onchange=refreshButton;
@@ -38,7 +38,7 @@ function refreshButton(){
  $('bulkPdiImport').disabled=!ready||!singleTestPassed;
 }
 function draw(){
- $('bulkPdiRows').innerHTML=items.map(x=>'<tr style="border-top:1px solid #ddd"><td>'+(x.status==='Eligible'?'<input type="radio" name="bulkPdiTestChoice" value="'+x.row+'" aria-label="Select row '+x.row+' for test">':'')+'</td><td>'+x.row+'</td><td>'+escape(x.vin)+'</td><td>'+escape(x.receiving)+'</td><td>'+escape(x.pdi)+'</td><td>'+escape(x.status)+'</td></tr>').join('');
+ $('bulkPdiRows').innerHTML=items.map(x=>'<tr style="border-top:1px solid #ddd"><td>'+(x.status==='Eligible'?'<input type="radio" name="bulkPdiTestChoice" value="'+x.row+'" aria-label="Select row '+x.row+' for test">':'')+'</td><td>'+x.row+'</td><td>'+escape(x.vin)+'</td><td>'+escape(x.make+' / '+x.model)+'</td><td>'+escape(x.classification)+'</td><td>'+escape(x.salesperson)+'</td><td>'+escape(x.customer)+'</td><td>'+escape(x.status)+'</td></tr>').join('');
  const counts={};items.forEach(x=>counts[x.status]=(counts[x.status]||0)+1);
  $('bulkPdiSummary').textContent=items.length?'Total '+items.length+' | '+Object.entries(counts).map(([k,v])=>k+': '+v).join(' | '):'';
  refreshButton();
@@ -58,32 +58,39 @@ async function preview(){
   if(typeof XLSX==='undefined')throw new Error('Excel reader unavailable. Reload the page.');
   const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
   const matrix=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false});
-  const headings=(matrix[0]||[]).map(vin);
-  const vcol=Math.max(0,headings.findIndex(x=>x==='VIN'||x==='CHASSIS NUMBER'));
-  const recHeader=headings.indexOf('RECEIVING');
-  const pdiHeader=headings.indexOf('PDI');
-  // XLSX may start the worksheet range at column B when column A is empty.
-  // The supplied stocktake sheet has an unlabelled VIN column immediately before Receiving.
-  const vinCol=headings.some(x=>x==='VIN'||x==='CHASSIS NUMBER')?vcol:(recHeader>0?recHeader-1:0);
-  const recCol=recHeader>=0?recHeader:vinCol+1;
-  const pdiCol=pdiHeader>=0?pdiHeader:recCol+1;
-  if(recHeader<0||pdiHeader<0||vinCol===recCol||vinCol===pdiCol)throw new Error('Cannot identify VIN, Receiving and PDI columns safely.');
+  const headings=(matrix[0]||[]).map(x=>trim(x).toUpperCase().replace(/\s+/g,' '));
+  const column=(...names)=>headings.findIndex(h=>names.includes(h));
+  const vinCol=column('VIN NUMBER','VIN','CHASSIS NUMBER');
+  const makeCol=column('MAKE'),modelCol=column('MODEL');
+  const salesCol=column('SALESPERSON','SALES PERSON');
+  const classCol=column('STATUS','STOCK CLASSIFICATION','CLASSIFICATION');
+  const customerCol=column('CUSTOMER NAME','CUSTOMER');
+  if([vinCol,makeCol,modelCol,salesCol,classCol,customerCol].some(x=>x<0))
+    throw new Error('Required columns: MAKE, MODEL, VIN NUMBER, SALESPERSON, Status, CUSTOMER NAME.');
   const seen=new Set();
   items=matrix.slice(1).map((cells,i)=>{
-   const v=vin(cells[vinCol]),receiving=trim(cells[recCol]),pdi=trim(cells[pdiCol]);
-   if(!v&&!receiving&&!pdi)return null;
+   const v=vin(cells[vinCol]),make=trim(cells[makeCol]),model=trim(cells[modelCol]);
+   const rawSalesperson=trim(cells[salesCol]),customer=trim(cells[customerCol]);
+   const rawClass=trim(cells[classCol]).toLowerCase();
+   const classification=({'stock':'Stock','sold':'Sold','allocated':'Allocated','consignment stock':'Consignment Stock'})[rawClass]||'';
+   const salesperson=['Stock','Consignment Stock'].includes(classification)?'':rawSalesperson;
+   if(!v&&!make&&!model&&!classification&&!rawSalesperson&&!customer)return null;
    let status='Eligible';
    if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(v))status='Review: invalid VIN';
    else if(seen.has(v))status='Review: duplicate in file';
-   else if(!empty(pdi))status='Review: PDI reference';
-   else if(!empty(receiving))status='Review: Receiving reference';
-   seen.add(v);return {row:i+2,vin:v,receiving,pdi,status};
+   else if(!make||!model)status='Review: missing make/model';
+   else if(!classification)status='Review: unknown classification';
+   else if(['Sold','Allocated'].includes(classification)&&!customer)status='Review: customer required';
+   else if(['Sold','Allocated'].includes(classification)&&!salesperson)status='Review: salesperson required';
+   else if(['Stock','Consignment Stock'].includes(classification)&&customer)status='Review: unexpected customer on stock';
+   seen.add(v);
+   return {row:i+2,vin:v,make,model,salesperson,classification,customer,receiving:'',pdi:'',status};
   }).filter(Boolean);
   const known=new Map((await allCases()).filter(x=>x.vin).map(x=>[vin(x.vin),x.id]));
   items.forEach(x=>{if(known.has(x.vin))x.status='Skip: existing PDI case '+known.get(x.vin);});
   // Restore the completed single-vehicle test from the durable server-side audit.
   // This must be checked against the VINs in the uploaded sheet; local browser state is not trusted.
-  const {data:verified,error:verifyError}=await supabaseClient.rpc('has_stocktake_import_test',{p_vins:items.map(x=>x.vin)});
+  const {data:verified,error:verifyError}=await supabaseClient.rpc('has_stocktake_allocated_test',{p_vins:items.map(x=>x.vin)});
   if(verifyError){singleTestPassed=false;draw();say('Preview complete, but prior test could not be verified: '+verifyError.message+'. Remaining import remains locked.',true);return;}
   singleTestPassed=verified===true;
   draw();say(singleTestPassed?'Preview complete. Previous test import verified against audit. You may approve and import the remaining eligible vehicles.':'Preview complete. No verified test import found for this file; remaining import remains locked.');
@@ -117,7 +124,7 @@ async function importSelected(eligible,isTest){
    const {data:check,error:checkError}=await supabaseClient.from('pdi_cases').select('id').ilike('vin',x.vin).limit(1);
    if(checkError){x.status='Error: '+checkError.message;draw();continue;}
    if(check?.length){x.status='Skipped: PDI case '+check[0].id;known.add(x.vin);draw();continue;}
-   const {data,error}=await supabaseClient.rpc('import_stocktake_pdi_vehicle',{p_vin:x.vin});
+   const {data,error}=await supabaseClient.rpc('import_stocktake_pdi_allocated',{p_vin:x.vin,p_make:x.make,p_model:x.model,p_classification:x.classification,p_salesperson_name:x.salesperson||null,p_customer:x.customer||null});
    const result=Array.isArray(data)?data[0]:data;
    x.status=error?'Error: '+error.message:(result?.outcome==='Imported'?'Imported: '+result.rcv_number+' / PDI case '+result.pdi_case_id:'Skipped: '+(result?.outcome||'Existing VIN')+' / PDI case '+(result?.pdi_case_id||'?'));
    x.allocatedRcv=result?.rcv_number||'';
@@ -134,7 +141,7 @@ async function importSelected(eligible,isTest){
  finally{busy=false;$('bulkPdiPreview').disabled=false;draw();}
 }
 function exportCsv(){
- const records=[['Excel Row','VIN','Receiving Reference','PDI Reference','Allocated RCV','Result'],...items.map(x=>[x.row,x.vin,x.receiving,x.pdi,x.allocatedRcv||'',x.status])];
+ const records=[['Excel Row','VIN','Make','Model','Classification','Salesperson','Customer','Allocated RCV','Result'],...items.map(x=>[x.row,x.vin,x.make,x.model,x.classification,x.salesperson,x.customer,x.allocatedRcv||'',x.status])];
  const csv=records.map(r=>r.map(v=>'"'+trim(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download='ELT-PDI-Stocktake-'+new Date().toISOString().slice(0,10)+'.csv';a.click();
