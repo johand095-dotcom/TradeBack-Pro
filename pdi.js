@@ -2676,9 +2676,8 @@ ${
               </td>
 
               <td>
-                ${getResponsibleForCurrentStep(
-                  item
-                )}
+                <div><strong>Salesperson:</strong> ${escapePdiHtml(item.allocated_salesperson_name || 'Unallocated')}</div>
+                <div style="margin-top:4px;font-size:12px;opacity:.8"><strong>Step responsible:</strong> ${escapePdiHtml(getResponsibleForCurrentStep(item))}</div>
               </td>
 
               <td>
