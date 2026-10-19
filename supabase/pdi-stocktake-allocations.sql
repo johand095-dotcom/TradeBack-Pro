@@ -21,7 +21,7 @@ declare
    when 'allocated' then 'Allocated'
    when 'consignment stock' then 'Consignment Stock'
    else null end;
- v_sales text := nullif(btrim(p_salesperson_name),'');
+ v_sales text := case when lower(btrim(p_classification)) in ('stock','consignment stock') then null else nullif(btrim(p_salesperson_name),'') end;
  v_customer text := nullif(btrim(p_customer),'');
  v_sales_id uuid;
  v_matches int;
