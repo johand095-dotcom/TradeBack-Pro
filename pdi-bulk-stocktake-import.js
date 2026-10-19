@@ -58,7 +58,7 @@ async function preview(){
   if(typeof XLSX==='undefined')throw new Error('Excel reader unavailable. Reload the page.');
   const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
   const matrix=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false});
-  const headings=(matrix[0]||[]).map(vin);
+  const headings=(matrix[0]||[]).map(x=>trim(x).toUpperCase().replace(/\s+/g,' '));
   const column=(...names)=>headings.findIndex(h=>names.includes(h));
   const vinCol=column('VIN NUMBER','VIN','CHASSIS NUMBER');
   const makeCol=column('MAKE'),modelCol=column('MODEL');
