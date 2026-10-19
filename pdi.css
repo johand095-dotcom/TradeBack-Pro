@@ -2465,3 +2465,12 @@ padding: 8px 8px;
     justify-content: flex-start !important;
   }
 }
+
+/* Keep long stock classification labels inside their table cell. */
+#pdiVehicleTableBody .pdi-badge-stock {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
