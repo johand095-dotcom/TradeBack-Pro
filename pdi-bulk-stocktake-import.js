@@ -70,10 +70,11 @@ async function preview(){
   const seen=new Set();
   items=matrix.slice(1).map((cells,i)=>{
    const v=vin(cells[vinCol]),make=trim(cells[makeCol]),model=trim(cells[modelCol]);
-   const salesperson=trim(cells[salesCol]),customer=trim(cells[customerCol]);
+   const rawSalesperson=trim(cells[salesCol]),customer=trim(cells[customerCol]);
    const rawClass=trim(cells[classCol]).toLowerCase();
    const classification=({'stock':'Stock','sold':'Sold','allocated':'Allocated','consignment stock':'Consignment Stock'})[rawClass]||'';
-   if(!v&&!make&&!model&&!classification&&!salesperson&&!customer)return null;
+   const salesperson=['Stock','Consignment Stock'].includes(classification)?'':rawSalesperson;
+   if(!v&&!make&&!model&&!classification&&!rawSalesperson&&!customer)return null;
    let status='Eligible';
    if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(v))status='Review: invalid VIN';
    else if(seen.has(v))status='Review: duplicate in file';
