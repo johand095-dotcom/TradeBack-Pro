@@ -72,13 +72,13 @@ begin
      when 'llewellyn' then 'Llewellyn'
      when 'venecia' then 'Venecia'
      else v_sales end;
-   select count(*),min(u.user_id) into v_matches,v_sales_id
+   select count(*),(array_agg(u.user_id))[1] into v_matches,v_sales_id
    from public.user_profiles u
    where u.is_active=true and 'Sales Person'=any(u.roles)
      and lower(btrim(u.full_name))=lower(v_sales);
    -- Venecia is assigned Sales rather than Sales Person in the live directory.
    if v_matches=0 and lower(v_sales)='venecia' then
-     select count(*),min(u.user_id) into v_matches,v_sales_id
+     select count(*),(array_agg(u.user_id))[1] into v_matches,v_sales_id
      from public.user_profiles u
      where u.is_active=true and 'Sales'=any(u.roles)
        and lower(btrim(u.full_name))='venecia';
