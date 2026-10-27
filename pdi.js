@@ -5187,7 +5187,7 @@ function buildPdiStepHtml(step) {
 
 const stepAttachmentHtml =
     step.attachment_url
-        ? `<span class="workflow-step-attachment">📎 ${escapePdiHtml(step.attachment_name || 'Attachment')}</span>`
+        ? `<span class="workflow-step-attachment">📎 <button type="button" class="pdi-view-step-attachment" data-step-id="${Number(step.id)}" style="border:0;background:none;padding:0;color:#1764a2;text-decoration:underline;cursor:pointer;font:inherit;">${escapePdiHtml(step.attachment_name || 'View document')}</button></span>`
         : '';
 
 const reopenAuditHtml =
@@ -5352,7 +5352,50 @@ ${
    BUTTON HANDLERS
 ========================================================= */
 
+async function openPdiStepAttachment(stepId, button) {
+  const step = selectedPdiSteps.find(item => Number(item.id) === Number(stepId));
+  if (!step?.attachment_url) {
+    alert('This workflow step has no saved document.');
+    return;
+  }
+
+  const path = String(step.attachment_url).trim();
+  // Attachments are stored as relative paths in this existing Supabase bucket.
+  if (!path.startsWith('pdi-cases/') || path.includes('..')) {
+    alert('This document has an unsupported storage reference. Please contact an administrator.');
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const { data, error } = await supabaseClient.storage
+      .from('bodybuilder-photos')
+      .createSignedUrl(path, 120);
+    if (error) throw error;
+    if (!data?.signedUrl) throw new Error('No document link was returned.');
+
+    const link = document.createElement('a');
+    link.href = data.signedUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (error) {
+    console.error('Could not open PDI attachment:', error);
+    alert('Could not access this document. Check that the file exists and that your account has storage access. ' + (error?.message || ''));
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function attachPdiStepButtons() {
+  document.querySelectorAll('.pdi-view-step-attachment').forEach(button => {
+    button.addEventListener('click', () => {
+      openPdiStepAttachment(button.dataset.stepId, button);
+    });
+  });
+
 
   document
     .querySelectorAll(
