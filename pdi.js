@@ -1823,7 +1823,7 @@ const classification =
                             <td>
 ${
     classification === 'Sold'
-        ? `<span class="pdi-badge pdi-badge-sold">Sold</span>`
+        ? `<div><span class="pdi-badge pdi-badge-sold">Sold</span>${item.allocated_customer ? `<div style="margin-top:6px;font-size:12px;font-weight:600;">${item.allocated_customer}</div>` : ''}</div>`
         : classification === 'Allocated'
             ? `
                 <div>
@@ -2621,7 +2621,7 @@ const priority =
          <td>
 ${
     classification === 'Sold'
-        ? `<span class="pdi-badge pdi-badge-sold">Sold</span>`
+        ? `<div><span class="pdi-badge pdi-badge-sold">Sold</span>${item.allocated_customer ? `<div style="margin-top:6px;font-size:12px;font-weight:600;">${item.allocated_customer}</div>` : ''}</div>`
         : classification === 'Allocated'
             ? `
                 <div>
@@ -3297,7 +3297,7 @@ if (
     allocatedCustomerElement
 ) {
     if (
-        selectedCase.stock_classification === 'Allocated' &&
+        (selectedCase.stock_classification === 'Allocated' || selectedCase.stock_classification === 'Sold') &&
         selectedCase.allocated_customer
     ) {
         allocatedCustomerElement.textContent =
@@ -3368,7 +3368,7 @@ const allocatedCustomerInput =
             );
 
             const updateAllocatedCustomerField = () => {
-    if (classificationSelect.value === 'Allocated') {
+    if (classificationSelect.value === 'Allocated' || classificationSelect.value === 'Sold') {
         allocatedCustomerField.classList.remove('hidden');
 
         allocatedCustomerInput.value =
@@ -3445,11 +3445,11 @@ classificationSelect.onchange =
 }
 let allocatedCustomer = null;
 
-if (newClassification === 'Allocated') {
+if (newClassification === 'Allocated' || newClassification === 'Sold') {
     allocatedCustomer =
-        allocatedCustomerInput.value.trim();
+        allocatedCustomerInput.value.trim() || selectedCase.allocated_customer || null;
 
-    if (!allocatedCustomer) {
+    if (!allocatedCustomer && newClassification === 'Allocated') {
         alert(
             'Please enter the Customer Name before saving an Allocated vehicle.'
         );
@@ -3470,7 +3470,7 @@ try {
                             .update({
     stock_classification: newClassification,
     allocated_customer:
-        newClassification === 'Allocated'
+        newClassification === 'Allocated' || newClassification === 'Sold'
             ? allocatedCustomer
             : null
 })
@@ -3486,7 +3486,7 @@ try {
                     selectedCase.stock_classification =
                         newClassification;
                         selectedCase.allocated_customer =
-    newClassification === 'Allocated'
+    newClassification === 'Allocated' || newClassification === 'Sold'
         ? allocatedCustomer
         : null;
 
