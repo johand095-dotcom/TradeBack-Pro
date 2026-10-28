@@ -8415,7 +8415,7 @@ document
                                 classification,
                             
                             'Allocated Customer':
-    classification === 'Allocated'
+    (classification === 'Allocated' || classification === 'Sold')
         ? (item.allocated_customer || '')
         : '',
 
