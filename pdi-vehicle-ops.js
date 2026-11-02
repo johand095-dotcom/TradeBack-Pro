@@ -90,7 +90,9 @@ const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase
       const row=document.createElement('button');row.type='button';row.style.cssText='display:block;width:100%;text-align:left;margin:5px 0;padding:9px;background:#eef4fa;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer';
       const item=entry.pdi_messages;row.textContent='VIN '+(caseList().find(c=>String(c.id)===String(item?.pdi_case_id))?.vin||'Unknown')+' · '+(item?.body||'').slice(0,120);
       row.addEventListener('click',async()=>{
-        const {error:e}=await client().from('pdi_message_recipients').update({read_at:new Date().toISOString()}).eq('message_id',entry.message_id).eq('recipient_id',userId());
+       
+const {error:e}=await client().rpc('elt_mark_pdi_message_read',{p_message_id:entry.message_id});
+
         if(e)return status('Could not mark message read: '+e.message,true);
         selectCase(item?.pdi_case_id);await pollUnread();
       });inbox.append(row);
