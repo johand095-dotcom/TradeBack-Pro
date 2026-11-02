@@ -51,7 +51,9 @@
     if(location==='Bodybuilder'&&!builder)return status('Enter the bodybuilder name.',true);
     if(busy)return;busy=true;
     try{
-      const {error}=await client().rpc('elt_update_pdi_location',{vehicle_case_id:activeCase.id,new_location:location,new_bodybuilder:location==='Bodybuilder'?builder:null});
+
+const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase.id,p_location:location,p_bodybuilder_name:location==='Bodybuilder'?builder:null});
+
       if(error)throw error;
       status('Location saved and history recorded.');await loadVehicle();
     }catch(e){status('Location not saved: '+e.message,true)}finally{busy=false}
