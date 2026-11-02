@@ -109,6 +109,10 @@ const {error:e}=await client().rpc('elt_mark_pdi_message_read',{p_message_id:ent
     el('eltOpsSaveLocation').addEventListener('click',saveLocation);
     el('eltOpsSend').addEventListener('click',sendMessage);
     if(activeCase)selector.value=String(activeCase.id);
+    const profile = typeof pdiUserProfile !== 'undefined' ? pdiUserProfile : null;
+    const canMove = Boolean(profile?.is_admin || (Array.isArray(profile?.roles) && profile.roles.some(role => ['sales admin','sales_admin'].includes(String(role).toLowerCase()))));
+    const saveButton = el('eltOpsSaveLocation');
+    if(saveButton){saveButton.disabled=!canMove;saveButton.title=canMove?'Save vehicle location':'Only Sales Admins can change vehicle locations';}
     void loadUsers();void pollUnread();if(activeCase)void loadVehicle();
   }
   function init(){
