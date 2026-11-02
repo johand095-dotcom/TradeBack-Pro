@@ -1932,8 +1932,52 @@ document.querySelectorAll('.prearrival-edit-order-btn').forEach(button => {
     }
     const ask = (label, value) => prompt(label, value ?? '');
     const supplier=ask('OEM / Supplier',item.oem_supplier); if(supplier===null)return;
-    const make=ask('Vehicle Make',item.make);if(make===null)return;
-    const model=ask('Vehicle Model',item.model);if(model===null)return;
+    // Use the approved linked catalogue for waiting-order corrections.
+    const chooseVehicle = () => new Promise(resolve => {
+      const catalogue = window.ELT_VEHICLE_MODELS || {};
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px';
+      const panel = document.createElement('div');
+      panel.style.cssText = 'background:white;color:#172b45;border-radius:12px;padding:24px;max-width:460px;width:100%;box-shadow:0 12px 40px #0004';
+      const title = document.createElement('h3'); title.textContent = 'Select approved vehicle make and model';
+      const makeLabel = document.createElement('label'); makeLabel.textContent = 'Make';
+      const makeSelect = document.createElement('select'); makeSelect.style.cssText = 'display:block;width:100%;padding:10px;margin:8px 0 18px';
+      const modelLabel = document.createElement('label'); modelLabel.textContent = 'Model';
+      const modelSelect = document.createElement('select'); modelSelect.style.cssText = makeSelect.style.cssText;
+      const buttons = document.createElement('div'); buttons.style.cssText = 'display:flex;gap:12px;justify-content:flex-end;margin-top:20px';
+      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel';
+      const confirmSelection = document.createElement('button'); confirmSelection.type = 'button'; confirmSelection.textContent = 'Continue'; confirmSelection.className = 'primary';
+      const add = (select,value,label) => select.add(new Option(label,value));
+      const existingMake = String(item.make || '');
+      const existingModel = String(item.model || '');
+      add(makeSelect,'','Select make');
+      Object.keys(catalogue).forEach(name => add(makeSelect,name,name));
+      if (existingMake && !catalogue[existingMake]) add(makeSelect,existingMake,existingMake+' (existing)');
+      const fillModels = (preserve = '') => {
+        modelSelect.replaceChildren();
+        add(modelSelect,'',makeSelect.value?'Select model':'Select make first');
+        (catalogue[makeSelect.value] || []).forEach(name => add(modelSelect,name,name));
+        if (preserve && !(catalogue[makeSelect.value] || []).includes(preserve)) add(modelSelect,preserve,preserve+' (existing)');
+        modelSelect.disabled = !makeSelect.value;
+        modelSelect.value = preserve || '';
+      };
+      makeSelect.value = existingMake;
+      fillModels(existingModel);
+      makeSelect.addEventListener('change',() => fillModels());
+      const close = result => { overlay.remove(); resolve(result); };
+      cancel.addEventListener('click',() => close(null));
+      confirmSelection.addEventListener('click',() => {
+        if (!makeSelect.value || !modelSelect.value) { alert('Select a make and model.'); return; }
+        close({make:makeSelect.value,model:modelSelect.value});
+      });
+      buttons.append(cancel,confirmSelection);
+      panel.append(title,makeLabel,makeSelect,modelLabel,modelSelect,buttons);
+      overlay.append(panel); document.body.append(overlay);
+      makeSelect.focus();
+    });
+    const vehicleSelection = await chooseVehicle();
+    if (!vehicleSelection) return;
+    const {make,model} = vehicleSelection;
     const vin=ask('VIN',item.vin);if(vin===null)return;
     const stock=ask('Stock Number',item.stock_no);if(stock===null)return;
     const ref=ask('Order / PO Reference',item.order_reference);if(ref===null)return;
