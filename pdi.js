@@ -1427,6 +1427,8 @@ ordered_at:
                         'preArrivalModel'
                     ).value = '';
 
+                window.eltSetVehicleMakeModel?.preArrivalMake?.('', '');
+
                 document
                     .getElementById(
                         'preArrivalVin'
