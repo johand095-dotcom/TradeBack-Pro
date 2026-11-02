@@ -40,9 +40,9 @@
     if(container){
       container.replaceChildren();
       for(const m of msgs.data||[]){
-        const line=document.createElement('div');line.style.cssText='padding:9px 0;border-bottom:1px solid #d9e1eb;white-space:pre-wrap;overflow-wrap:anywhere';
+        const line=document.createElement('article');line.style.cssText='margin:10px 0;padding:13px 15px;border:1px solid #d9e1eb;border-radius:9px;background:#f8fafc;overflow-wrap:anywhere';
         const head=document.createElement('strong');head.textContent=(m.sender_id===userId()?'You':(window.eltOpsUsers||[]).find(u=>u.user_id===m.sender_id)?.full_name||'Team member')+' · '+new Date(m.created_at).toLocaleString();
-        const body=document.createElement('div');body.textContent=m.body;line.append(head,body);container.append(line);
+        const body=document.createElement('div');body.style.cssText='margin-top:7px;white-space:pre-wrap;line-height:1.5';body.textContent=m.body;line.append(head,body);container.append(line);
       }
     }
   }
