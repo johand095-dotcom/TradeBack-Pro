@@ -8,7 +8,7 @@
     const make=document.getElementById(makeId),model=document.getElementById(modelId);
     if(!make||!model)return;
     function updateModels(preserveModel='') {
-      const previous=preserveModel||model.value;
+      const previous=preserveModel;
       model.replaceChildren();
       addOption(model,'',make.value?'Select model':'Select make first');
       for(const name of catalogue()[make.value]||[])addOption(model,name,name);
