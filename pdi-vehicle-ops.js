@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   const locations = ['Stock Yard','Workshop','Washbay','Fitment Bays','Waiting collection Bays','Bodybuilder'];
-  let activeCase = null, refreshHandle = null, busy = false;
+  let activeCase = null, refreshHandle = null, busy = false, loadVersion = 0;
   const el = id => document.getElementById(id);
   const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const client = () => window.supabaseClient;
@@ -20,13 +20,16 @@
     void loadVehicle();
   }
   async function loadVehicle() {
+    const version=++loadVersion;
     if(!activeCase || !userId())return;
+    const selectedCaseId=activeCase.id;
     status('');
     const [loc,history,msgs]=await Promise.all([
-      client().from('pdi_cases').select('current_location,bodybuilder_name').eq('id',activeCase.id).single(),
-      client().from('pdi_location_history').select('location,bodybuilder_name,changed_at').eq('pdi_case_id',activeCase.id).order('changed_at',{ascending:false}).limit(30),
-      client().from('pdi_messages').select('id,body,created_at,sender_id').eq('pdi_case_id',activeCase.id).order('created_at',{ascending:true}).limit(500)
+      client().from('pdi_cases').select('current_location,bodybuilder_name').eq('id',selectedCaseId).single(),
+      client().from('pdi_location_history').select('location,bodybuilder_name,changed_at').eq('pdi_case_id',selectedCaseId).order('changed_at',{ascending:false}).limit(30),
+      client().from('pdi_messages').select('id,body,created_at,sender_id').eq('pdi_case_id',selectedCaseId).order('created_at',{ascending:true}).limit(500)
     ]);
+    if(version!==loadVersion)return;
     if(loc.error || history.error || msgs.error){status('Location or messaging database is not ready yet. Please ask the administrator to complete the test migration.',true);return;}
     const location=el('eltOpsLocation');if(location)location.value=loc.data?.current_location||'';
     const builder=el('eltOpsBuilder');if(builder)builder.value=loc.data?.bodybuilder_name||'';
@@ -81,8 +84,8 @@ const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase
   }
   async function pollUnread(){
     if(!userId())return;
-    const {data,error}=await client().from('pdi_message_recipients').select('message_id,pdi_messages(pdi_case_id,body,created_at)').eq('recipient_id',userId()).is('read_at',null).limit(100);
-    if(error)return;
+    const {data,error}=await client().from('pdi_message_recipients').select('message_id,pdi_messages(pdi_case_id,body,created_at)').eq('recipient_id',userId()).is('read_at',null).order('message_id',{ascending:false}).limit(100);
+    if(error){status('Could not load unread messages: '+error.message,true);return;}
     const count=data?.length||0, badge=el('eltOpsUnread');
     if(badge)badge.textContent=count?' ('+count+' unread)':'';
     const inbox=el('eltOpsInbox');if(!inbox)return;inbox.replaceChildren();
@@ -108,11 +111,15 @@ const {error:e}=await client().rpc('elt_mark_pdi_message_read',{p_message_id:ent
     loc.addEventListener('change',toggleBuilder);
     el('eltOpsSaveLocation').addEventListener('click',saveLocation);
     el('eltOpsSend').addEventListener('click',sendMessage);
-    if(activeCase)selector.value=String(activeCase.id);
+    if(activeCase && caseList().some(c=>String(c.id)===String(activeCase.id)))selector.value=String(activeCase.id);
+    else activeCase=null;
     const profile = typeof pdiUserProfile !== 'undefined' ? pdiUserProfile : null;
     const canMove = Boolean(profile?.is_admin || (Array.isArray(profile?.roles) && profile.roles.some(role => ['sales admin','sales_admin'].includes(String(role).toLowerCase()))));
     const saveButton = el('eltOpsSaveLocation');
     if(saveButton){saveButton.disabled=!canMove;saveButton.title=canMove?'Save vehicle location':'Only Sales Admins can change vehicle locations';}
+    const locSelect=el('eltOpsLocation'),builderInput=el('eltOpsBuilder');
+    if(locSelect)locSelect.disabled=!canMove;
+    if(builderInput)builderInput.disabled=!canMove;
     void loadUsers();void pollUnread();if(activeCase)void loadVehicle();
   }
   function init(){
@@ -123,11 +130,7 @@ const {error:e}=await client().rpc('elt_mark_pdi_message_read',{p_message_id:ent
     else if(archive?.parentElement)archive.parentElement.insertBefore(panel,archive);
     else document.body.append(panel);
     render();
-    // Wrap existing workflow navigation without changing the original handler.
-    if(typeof openPdiWorkflow==='function'){
-      const original=openPdiWorkflow;
-      window.openPdiWorkflow=async function(caseId){const result=await original.apply(this,arguments);selectCase(caseId);return result;};
-    }
+    // Explicit VIN selector remains available independently of workflow navigation.
     if(!refreshHandle)refreshHandle=setInterval(()=>{if(userId())void pollUnread()},20000);
   }
   document.addEventListener('DOMContentLoaded',init);
