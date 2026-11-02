@@ -2165,6 +2165,12 @@ function loadReceivingRecord(record, scroll = true) {
     const element = document.getElementById(id);
     if (element) element.value = value || '';
   });
+  if (window.eltSetVehicleMakeModel?.receivingMake) {
+    window.eltSetVehicleMakeModel.receivingMake(
+      record.fields?.receivingMake || '',
+      record.fields?.receivingModel || ''
+    );
+  }
   renderArrivalPhotos();
   renderReceivingChecklist();
   clearReceivingSignature();
