@@ -886,6 +886,9 @@ expected_completion_override_reason
   pdiCases =
     data || [];
 
+  if (typeof window.eltOpsRefresh === 'function') {
+    window.eltOpsRefresh();
+  }
 
   await attachCurrentStepDetails();
 
