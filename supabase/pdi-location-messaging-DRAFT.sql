@@ -17,7 +17,7 @@ alter table public.pdi_cases add constraint pdi_cases_bodybuilder_required_check
 
 create table if not exists public.pdi_location_history (
   id bigint generated always as identity primary key,
-  pdi_case_id bigint not null references public.pdi_cases(id) on delete cascade,
+  pdi_case_id bigint not null references public.pdi_cases(id) on delete restrict,
   location text not null check (location in
     ('Stock Yard','Workshop','Washbay','Fitment Bays','Waiting collection Bays','Bodybuilder')),
   bodybuilder_name text,
@@ -29,7 +29,7 @@ create index if not exists pdi_location_history_case_idx on public.pdi_location_
 
 create table if not exists public.pdi_messages (
   id bigint generated always as identity primary key,
-  pdi_case_id bigint not null references public.pdi_cases(id) on delete cascade,
+  pdi_case_id bigint not null references public.pdi_cases(id) on delete restrict,
   sender_id uuid not null references auth.users(id),
   body text not null check (length(btrim(body)) between 1 and 5000),
   created_at timestamptz not null default now()
@@ -110,7 +110,7 @@ create or replace function public.elt_update_pdi_location(
 returns void language plpgsql security definer set search_path = '' as $$
 declare permitted boolean; previous_location text; previous_builder text;
 begin
-  select (p.is_active and (p.is_admin or p.roles::text ilike '%sales admin%'))
+  select (p.is_active and (p.is_admin or (p.roles::text ilike '%sales admin%' or p.roles::text ilike '%sales_admin%')))
   into permitted from public.user_profiles p where p.user_id=auth.uid();
   if coalesce(permitted,false)=false then raise exception 'Sales Admin access required'; end if;
   if new_location not in ('Stock Yard','Workshop','Washbay','Fitment Bays','Waiting collection Bays','Bodybuilder')
@@ -133,6 +133,4 @@ end; $$;
 revoke all on function public.elt_update_pdi_location(bigint,text,text) from public;
 grant execute on function public.elt_update_pdi_location(bigint,text,text) to authenticated;
 
--- IMPORTANT: Current vehicle deletion cascade removes history. For permanent audit
--- preservation after deletion, use soft-delete / retention policy before production.
--- Completed/archive cases remain in pdi_cases, so their history remains accessible.
+-- Audit protection: linked history/messages block physical vehicle deletion.\n-- Use an explicitly reviewed soft-delete workflow for vehicles with audit history.\n-- Completed/archive cases remain in pdi_cases, so their history remains accessible.
