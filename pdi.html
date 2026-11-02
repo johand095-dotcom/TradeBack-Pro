@@ -272,22 +272,14 @@
             <label for="preArrivalMake">
                 Vehicle Make
             </label>
-            <input
-                type="text"
-                id="preArrivalMake"
-                placeholder="e.g. FAW"
-            >
+            <select id="preArrivalMake" required><option value="">Select make</option></select>
         </div>
 
         <div>
             <label for="preArrivalModel">
                 Vehicle Model
             </label>
-            <input
-                type="text"
-                id="preArrivalModel"
-                placeholder="e.g. JH6 28.500FT"
-            >
+            <select id="preArrivalModel" required disabled><option value="">Select make first</option></select>
         </div>
 
         <div>
@@ -1910,7 +1902,9 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="pdi.js?v=20261028-sold-export"></script>
+  <script src="vehicle-model-catalogue.js?v=20261102"></script>
+<script src="vehicle-model-dropdowns.js?v=20261102"></script>
+<script src="pdi.js?v=20261028-sold-export"></script>
 <script src="pdi-prearrival-extension.js?v=1.0"></script>
 <script src="pdi-dashboard-cleanup.js?v=1.0"></script>
 <script src="pdi-table-responsive.js?v=1.0"></script>
