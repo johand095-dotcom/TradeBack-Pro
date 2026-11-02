@@ -9,8 +9,9 @@ const MAX_ARRIVAL_PHOTOS_PER_VIEW = 1;
 const MAX_CHECKLIST_PHOTOS_PER_ITEM = 3;
 /* ========= SUPABASE ========= */
 
-const SUPABASE_URL = 'https://upkmtznkhfbwadofaxno.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_Al-SumF_BuGOzzwpIX_yBw_LwGJUYet';
+
+const SUPABASE_URL = 'https://venvbtexgypdavnvlhks.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_HmrLjNRrI3sFTZ04cljBCw_lg9hYx-E';
 
 const supabaseClient =
     window.supabase.createClient(
@@ -2165,6 +2166,12 @@ function loadReceivingRecord(record, scroll = true) {
     const element = document.getElementById(id);
     if (element) element.value = value || '';
   });
+  if (window.eltSetVehicleMakeModel?.receivingMake) {
+    window.eltSetVehicleMakeModel.receivingMake(
+      record.fields?.receivingMake || '',
+      record.fields?.receivingModel || ''
+    );
+  }
   renderArrivalPhotos();
   renderReceivingChecklist();
   clearReceivingSignature();
