@@ -10,8 +10,8 @@ const MAX_CHECKLIST_PHOTOS_PER_ITEM = 3;
 /* ========= SUPABASE ========= */
 
 
-const SUPABASE_URL = 'https://venvbtexgypdavnvlhks.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_HmrLjNRrI3sFTZ04cljBCw_lg9hYx-E';
+const SUPABASE_URL = 'https://upkmtznkhfbwadofaxno.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_Al-SumF_BuGOzzwpIX_yBw_LwGJUYet';
 
 const supabaseClient =
     window.supabase.createClient(
