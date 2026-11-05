@@ -30,7 +30,7 @@
       client().from('pdi_messages').select('id,body,created_at,sender_id').eq('pdi_case_id',selectedCaseId).order('created_at',{ascending:true}).limit(500)
     ]);
     if(version!==loadVersion)return;
-    if(loc.error || history.error || msgs.error){status('Location or messaging database is not ready yet. Please ask the administrator to complete the test migration.',true);return;}
+    if(loc.error || history.error || msgs.error){const details=[loc.error,history.error,msgs.error].filter(Boolean).map(e=>e.message).join(' | ');status('Communications database unavailable: '+details,true);return;}
     const location=el('eltOpsLocation');if(location)location.value=loc.data?.current_location||'';
     const builder=el('eltOpsBuilder');if(builder)builder.value=loc.data?.bodybuilder_name||'';
     toggleBuilder();
@@ -55,10 +55,10 @@
     if(busy)return;busy=true;
     try{
 
-const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase.id,p_location:location,p_bodybuilder_name:location==='Bodybuilder'?builder:null});
+const {error}=await client().rpc('elt_update_pdi_location',{vehicle_case_id:activeCase.id,new_location:location,new_bodybuilder:location==='Bodybuilder'?builder:null});
 
       if(error)throw error;
-      status('Location saved and history recorded.');await loadVehicle();
+      await loadVehicle();if(!el('eltOpsStatus')?.textContent)status('Location saved and history recorded.');
     }catch(e){status('Location not saved: '+e.message,true)}finally{busy=false}
   }
   async function loadUsers(){
@@ -79,7 +79,7 @@ const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase
     try{
       const {error}=await client().rpc('elt_send_pdi_message',{vehicle_case_id:activeCase.id,recipient_ids:recipients,message_body:body});
       if(error)throw error;
-      el('eltOpsBody').value='';status('Message sent and linked to this vehicle.');await loadVehicle();await pollUnread();
+      el('eltOpsBody').value='';await loadVehicle();await pollUnread();if(!el('eltOpsStatus')?.textContent)status('Message sent and linked to this vehicle.');
     }catch(e){status('Message not sent: '+e.message,true)}finally{busy=false}
   }
   async function pollUnread(){
