@@ -30,7 +30,7 @@
       client().from('pdi_messages').select('id,body,created_at,sender_id').eq('pdi_case_id',selectedCaseId).order('created_at',{ascending:true}).limit(500)
     ]);
     if(version!==loadVersion)return;
-    if(loc.error || history.error || msgs.error){status('Location or messaging database is not ready yet. Please ask the administrator to complete the test migration.',true);return;}
+    if(loc.error || history.error || msgs.error){const details=[loc.error,history.error,msgs.error].filter(Boolean).map(e=>e.message).join(' | ');status('Communications database unavailable: '+details,true);return;}
     const location=el('eltOpsLocation');if(location)location.value=loc.data?.current_location||'';
     const builder=el('eltOpsBuilder');if(builder)builder.value=loc.data?.bodybuilder_name||'';
     toggleBuilder();
@@ -58,7 +58,7 @@
 const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase.id,p_location:location,p_bodybuilder_name:location==='Bodybuilder'?builder:null});
 
       if(error)throw error;
-      status('Location saved and history recorded.');await loadVehicle();
+      await loadVehicle();if(!el('eltOpsStatus')?.textContent)status('Location saved and history recorded.');
     }catch(e){status('Location not saved: '+e.message,true)}finally{busy=false}
   }
   async function loadUsers(){
@@ -79,7 +79,7 @@ const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase
     try{
       const {error}=await client().rpc('elt_send_pdi_message',{vehicle_case_id:activeCase.id,recipient_ids:recipients,message_body:body});
       if(error)throw error;
-      el('eltOpsBody').value='';status('Message sent and linked to this vehicle.');await loadVehicle();await pollUnread();
+      el('eltOpsBody').value='';await loadVehicle();await pollUnread();if(!el('eltOpsStatus')?.textContent)status('Message sent and linked to this vehicle.');
     }catch(e){status('Message not sent: '+e.message,true)}finally{busy=false}
   }
   async function pollUnread(){
@@ -103,9 +103,27 @@ const {error:e}=await client().rpc('elt_mark_pdi_message_read',{p_message_id:ent
   }
   function render(){
     const root=el('eltOpsPanel');if(!root)return;
-    root.innerHTML='<h2>Vehicle Location & Communications <span id="eltOpsUnread"></span></h2><p>Choose a VIN or open its workflow. Messages remain on the vehicle record after completion.</p><label>Vehicle <select id="eltOpsCaseSelect" style="width:100%;padding:9px"></select></label><h3 id="eltOpsVehicle">Select a vehicle</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px"><section><h3>Current location</h3><label>Location <select id="eltOpsLocation" style="width:100%;padding:9px"></select></label><div id="eltOpsBuilderWrap" hidden><label>Bodybuilder name <input id="eltOpsBuilder" maxlength="150" style="width:100%;padding:9px"></label></div><button id="eltOpsSaveLocation" type="button">Save location</button><h4>Location history</h4><pre id="eltOpsLocationHistory" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></section><section><h3>Send VIN-linked message</h3><label>Recipients (Ctrl+click for multiple)<select id="eltOpsRecipients" multiple size="6" style="width:100%;padding:9px"></select></label><textarea id="eltOpsBody" maxlength="5000" rows="4" placeholder="Type your message..." style="width:100%;padding:9px"></textarea><button id="eltOpsSend" type="button">Send message</button><h4>Unread messages</h4><div id="eltOpsInbox"></div></section></div><h3>Vehicle communication trail</h3><div id="eltOpsMessages" style="max-height:360px;overflow:auto"></div><p id="eltOpsStatus" role="status"></p>';
-    const selector=el('eltOpsCaseSelect');selector.append(new Option('Select a vehicle',''));
-    for(const c of caseList())selector.append(new Option(label(c),String(c.id)));
+    root.innerHTML='<h2>Vehicle Location & Communications <span id="eltOpsUnread"></span></h2><p>Choose a VIN or open its workflow. Messages remain on the vehicle record after completion.</p><label for="eltOpsCaseSearch">Search vehicle by VIN, stock number, make or model</label><input id="eltOpsCaseSearch" type="search" autocomplete="off" placeholder="Start typing a VIN or stock number..." style="width:100%;padding:10px;margin:6px 0 4px;border:1px solid #cbd5e1;border-radius:7px"><small id="eltOpsCaseSearchCount" aria-live="polite" style="display:block;margin-bottom:8px;color:#475569"></small><label>Vehicle <select id="eltOpsCaseSelect" style="width:100%;padding:9px"></select></label><h3 id="eltOpsVehicle">Select a vehicle</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px"><section><h3>Current location</h3><label>Location <select id="eltOpsLocation" style="width:100%;padding:9px"></select></label><div id="eltOpsBuilderWrap" hidden><label>Bodybuilder name <input id="eltOpsBuilder" maxlength="150" style="width:100%;padding:9px"></label></div><button id="eltOpsSaveLocation" type="button">Save location</button><h4>Location history</h4><pre id="eltOpsLocationHistory" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></section><section><h3>Send VIN-linked message</h3><label>Recipients (Ctrl+click for multiple)<select id="eltOpsRecipients" multiple size="6" style="width:100%;padding:9px"></select></label><textarea id="eltOpsBody" maxlength="5000" rows="4" placeholder="Type your message..." style="width:100%;padding:9px"></textarea><button id="eltOpsSend" type="button">Send message</button><h4>Unread messages</h4><div id="eltOpsInbox"></div></section></div><h3>Vehicle communication trail</h3><div id="eltOpsMessages" style="max-height:360px;overflow:auto"></div><p id="eltOpsStatus" role="status"></p>';
+    const selector=el('eltOpsCaseSelect');
+    const search=el('eltOpsCaseSearch');
+    const populateVehicles=()=>{
+      const term=(search?.value||'').trim().toLocaleLowerCase();
+      const selected=activeCase?String(activeCase.id):'';
+      selector.replaceChildren(new Option('Select a vehicle',''));
+      let count=0;
+      for(const c of caseList()){
+        const searchable=[c.vin,c.stock_no,c.make,c.model,label(c)].filter(Boolean).join(' ').toLocaleLowerCase();
+        if(term&&!searchable.includes(term))continue;
+        selector.append(new Option(label(c),String(c.id)));
+        count++;
+      }
+      if(selected&&Array.from(selector.options).some(o=>o.value===selected))selector.value=selected;
+      if(!count)selector.options[0].textContent='No matching vehicles';
+      const result=el('eltOpsCaseSearchCount');
+      if(result)result.textContent=term?count+' matching vehicle'+(count===1?'':'s'):'';
+    };
+    if(search)search.addEventListener('input',populateVehicles);
+    populateVehicles();
     selector.addEventListener('change',()=>selectCase(selector.value));
     const loc=el('eltOpsLocation');loc.append(new Option('Select location',''));for(const v of locations)loc.append(new Option(v,v));
     loc.addEventListener('change',toggleBuilder);
