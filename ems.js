@@ -136,7 +136,7 @@ async function loadEmsUserProfile() {
     }
 
     emsUserProfile = data;
-
+    if (emsCases.length) renderEmsDashboard();
     return true;
 }
 
@@ -814,6 +814,11 @@ function openEmsWorkflow(emsId) {
     }
     // Store the selected EMS case for workflow actions
 emsSelectedCase = selectedCase;
+ const archiveWorkflowButton=document.getElementById('emsArchiveWorkflowButton');
+ if(archiveWorkflowButton){
+  archiveWorkflowButton.classList.toggle('hidden',emsUserProfile?.is_admin!==true);
+  archiveWorkflowButton.dataset.emsArchive=selectedCase.id;
+ }
 
     console.log('Opening EMS workflow:', selectedCase);
 
