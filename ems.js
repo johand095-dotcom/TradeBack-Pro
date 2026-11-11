@@ -1363,7 +1363,7 @@ document.getElementById('downloadEmsReportButton')?.addEventListener('click',asy
   const headers=['EMS No','Registration','VIN','Job Card','Customer','Booking Date',
     'Phase','Status','Days In Progress','Completed Steps','Outstanding Steps',
     'Next Outstanding Action','Latest Step Completion'];
-  const rows=emsCases.map(c=>{
+  const rows=emsCases.filter(c=>String(c.workflow_status||'').toLowerCase()!=='archived').map(c=>{
    const entries=(history||[]).filter(e=>String(e.ems_case_id)===String(c.id));
    const finished=new Set(entries.map(e=>e.step_key));
    const complete=EMS_PHASE_STEPS.filter(x=>finished.has(x[1])||emsLegacyStepDone(c,x[1]));
@@ -1376,7 +1376,7 @@ document.getElementById('downloadEmsReportButton')?.addEventListener('click',asy
   });
   const safeCell=value=>{
     let v=String(value??'');
-    if(/^\\s*[=+@-]/.test(v))v="'"+v;
+    if(/^\s*[=+@-]/.test(v))v="'"+v;
     return '"'+v.replace(/"/g,'""')+'"';
    };
    const csv='sep=;\r\n'+[headers,...rows].map(row=>row.map(safeCell).join(';')).join('\r\n');
