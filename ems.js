@@ -1258,7 +1258,7 @@ async function renderEmsStepTracker(c){
  if(!panel||!body)return;
  panel.classList.remove('hidden');
  const {data,error}=await supabaseClient.from('ems_step_events')
-   .select('step_key,completed_at,notes').eq('ems_case_id',c.id);
+   .select('step_key,completed_at,notes,attachment_path').eq('ems_case_id',c.id);
  if(error){body.textContent='Step history unavailable: '+error.message+' (TEST migration required).';return;}
  const events=data||[];
  body.innerHTML=[1,2,3,4].map(phase=>{
@@ -1273,6 +1273,7 @@ async function renderEmsStepTracker(c){
  <strong>${emsEscape(label)}</strong> — ${done?'Completed':'Outstanding'}
  ${event?'<small> · '+new Date(event.completed_at).toLocaleString('en-ZA')+'</small>':''}
  ${event?.notes?'<p>'+emsEscape(event.notes)+'</p>':''}
+ ${event?.attachment_path?'<button type="button" class="secondary-button" data-ems-file="'+emsEscape(event.attachment_path)+'">View document</button>':''}
  ${!done&&phase===Number(c.current_phase||1)?'<button type="button" class="secondary-button" data-ems-step="'+key+'">Complete</button>':''}
  </div>`}).join(''):'<p>Final close-out follows signed invoice and supporting proof.</p>'}
  </details>`;
@@ -1281,20 +1282,34 @@ async function renderEmsStepTracker(c){
 document.addEventListener('click',async e=>{
  const btn=e.target.closest('[data-ems-step]');if(!btn||!emsSelectedCase)return;
  const key=btn.dataset.emsStep;
- if(['authorised','released','signed'].includes(key)){
-  alert('This action requires an attached document and will be enabled after storage configuration is verified.');return;
- }
+ 
  const stepDef=EMS_PHASE_STEPS.find(x=>x[1]===key);
  const phase=Number(stepDef?.[0]);
  if(phase!==Number(emsSelectedCase.current_phase||1)){alert('Complete the current phase first.');return;}
  const note=prompt('Completion notes / reference (Cancel to stop):');if(note===null)return;
+ const requiresFile=['authorised','released','signed'].includes(key);
+ let attachmentPath=null;
+ if(requiresFile){
+  const file=await emsChooseDocument();
+  if(!file)return;
+  const extension=file.name.split('.').pop().toLowerCase();
+  if(!['pdf','jpg','jpeg','png','webp'].includes(extension)||file.size>10485760){
+   alert('Please select a PDF or image smaller than 10 MB.');return;
+  }
+  const {data:{user},error:authError}=await supabaseClient.auth.getUser();
+  if(authError||!user){alert('Please sign in.');return;}
+  attachmentPath=String(emsSelectedCase.id)+'/'+key+'/'+crypto.randomUUID()+'.'+extension;
+  const {error:uploadError}=await supabaseClient.storage.from('ems-supporting-documents')
+   .upload(attachmentPath,file,{contentType:file.type||'application/octet-stream',upsert:false});
+  if(uploadError){alert('Document upload failed: '+uploadError.message);return;}
+ }
  if(['technician','invoiced'].includes(key)&&!note.trim()){alert('Technician name or invoice number is required.');return;}
  btn.disabled=true;
  try{
  const {data:{user},error:authError}=await supabaseClient.auth.getUser();
  if(authError||!user)throw authError||new Error('Please sign in');
  const {error}=await supabaseClient.from('ems_step_events').insert({
-  ems_case_id:emsSelectedCase.id,step_key:key,notes:note,completed_by:user.id
+  ems_case_id:emsSelectedCase.id,step_key:key,notes:note,completed_by:user.id,attachment_path:attachmentPath
  });
  if(error)throw error;
  const phaseSteps=EMS_PHASE_STEPS.filter(x=>Number(x[0])===phase);
@@ -1303,6 +1318,12 @@ document.addEventListener('click',async e=>{
  if(readError)throw readError;
  const finished=new Set((recorded||[]).map(x=>x.step_key));
  const phaseComplete=phaseSteps.every(x=>finished.has(x[1])||emsLegacyStepDone(emsSelectedCase,x[1]));
+ if(phaseComplete&&phase===4){
+   const {error:closeError}=await supabaseClient.from('ems_cases')
+    .update({workflow_status:'Completed',updated_at:new Date().toISOString()})
+    .eq('id',emsSelectedCase.id).eq('current_phase',4);
+   if(closeError)throw new Error('Step saved, but case close-out failed: '+closeError.message);
+ }
  if(phaseComplete&&phase<4){
    const timestamp=new Date().toISOString();
    const {data:updated,error:updateError}=await supabaseClient.from('ems_cases')
@@ -1342,5 +1363,28 @@ document.getElementById('downloadEmsReportButton')?.addEventListener('click',asy
   a.download='ELT-EMS-Report-'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }catch(error){alert('EMS report export failed: '+error.message);}
+ finally{button.disabled=false;}
+});
+
+function emsChooseDocument(){
+ return new Promise(resolve=>{
+  const input=document.createElement('input');input.type='file';
+  input.accept='.pdf,.jpg,.jpeg,.png,.webp';
+  input.style.display='none';document.body.appendChild(input);
+  let chosen=false;
+  input.addEventListener('change',()=>{chosen=true;const file=input.files?.[0]||null;input.remove();resolve(file);},{once:true});
+  input.addEventListener('cancel',()=>{if(!chosen){input.remove();resolve(null);}},{once:true});
+  input.click();
+ });
+}
+document.addEventListener('click',async e=>{
+ const button=e.target.closest('[data-ems-file]');if(!button)return;
+ button.disabled=true;
+ try{
+  const {data,error}=await supabaseClient.storage.from('ems-supporting-documents')
+   .createSignedUrl(button.dataset.emsFile,120);
+  if(error)throw error;
+  window.open(data.signedUrl,'_blank','noopener,noreferrer');
+ }catch(error){alert('Unable to open document: '+error.message);}
  finally{button.disabled=false;}
 });
