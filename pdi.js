@@ -773,7 +773,7 @@ async function loadPdiStepTemplates() {
         return;
     }
 
-    pdiStepTemplates = data || [];
+    pdiStepTemplates = (data || []).filter(step => Number(step.step_no) !== 12);
 
     console.log(
         'PDI step templates loaded:',
@@ -984,8 +984,7 @@ while (true) {
   }
 
 
-  const steps =
-    data || [];
+  const steps = (data || []).filter(step => Number(step.step_no) !== 12);
 
 
   pdiCases.forEach(
@@ -5004,8 +5003,7 @@ reopen_reason
     caseId;
 
 
-  selectedPdiSteps =
-    data || [];
+  selectedPdiSteps = (data || []).filter(step => Number(step.step_no) !== 12);
 
 
   renderPdiWorkflowSteps();
@@ -7496,7 +7494,7 @@ function updateAdminHistoricalCloseoutButton() {
     pdiUserProfile?.is_admin === true;
 
   const hasPendingSteps =
-    selectedPdiSteps.some(
+    selectedPdiSteps.filter(step => Number(step.step_no) !== 12).some(
       step => String(step.step_status || '').toLowerCase() !== 'completed'
     );
 
@@ -7526,6 +7524,7 @@ async function completeHistoricalPdiWorkflow() {
 
   const pendingSteps =
     selectedPdiSteps
+      .filter(step => Number(step.step_no) !== 12)
       .filter(
         step =>
           step.id &&
@@ -7771,6 +7770,13 @@ function userCanHandlePdiRole(
       .trim();
 const isDriverStep =
     required === 'driver';
+
+const userIsPdiAdmin = roles.some(role =>
+    String(role).toLowerCase().trim() === 'pdi admin'
+);
+if (userIsPdiAdmin && (required === 'pdi controller' || required === 'driver')) {
+    return true;
+}
 
 const userIsPdiController =
     roles.some(
