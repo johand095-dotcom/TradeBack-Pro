@@ -7772,6 +7772,13 @@ function userCanHandlePdiRole(
 const isDriverStep =
     required === 'driver';
 
+const userIsPdiAdmin = roles.some(role =>
+    String(role).toLowerCase().trim() === 'pdi admin'
+);
+if (userIsPdiAdmin && (required === 'pdi controller' || required === 'driver')) {
+    return true;
+}
+
 const userIsPdiController =
     roles.some(
         role =>
