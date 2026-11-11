@@ -567,7 +567,7 @@ function renderEmsDashboard() {
     }
 
     const activeCases = emsCases.filter(
-        item => !['completed','released','collected'].includes(String(item.workflow_status||'').trim().toLowerCase())
+        item => !['completed','released','collected','archived','deleted'].includes(String(item.workflow_status||'').trim().toLowerCase())
     );
 
     // Update dashboard counters
@@ -656,6 +656,7 @@ function renderEmsDashboard() {
                     >
                         View
                     </button>
+                    ${emsUserProfile?.is_admin===true?'<button type="button" class="ems-archive-button" data-ems-archive="'+item.id+'">Delete</button>':''}
                 </td>
             </tr>
         `;
@@ -1373,11 +1374,16 @@ document.getElementById('downloadEmsReportButton')?.addEventListener('click',asy
     c.current_phase,c.workflow_status,days,complete.length,outstanding.length,
     outstanding[0]?.[2]||'None',last];
   });
-  const csv=[headers,...rows].map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')).join(',')).join('\r\n');
-  const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
-  const a=document.createElement('a');a.href=url;
-  a.download='ELT-EMS-Report-'+new Date().toISOString().slice(0,10)+'.csv';
-  a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const safeCell=value=>{
+    let v=String(value??'');
+    if(/^\\s*[=+@-]/.test(v))v="'"+v;
+    return '"'+v.replace(/"/g,'""')+'"';
+   };
+   const csv='sep=;\r\n'+[headers,...rows].map(row=>row.map(safeCell).join(';')).join('\r\n');
+   const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
+   const a=document.createElement('a');a.href=url;
+   a.download='ELT-EMS-Report-'+new Date().toISOString().slice(0,10)+'.csv';
+   a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }catch(error){alert('EMS report export failed: '+error.message);}
  finally{button.disabled=false;}
 });
@@ -1402,5 +1408,25 @@ document.addEventListener('click',async e=>{
   if(error)throw error;
   window.open(data.signedUrl,'_blank','noopener,noreferrer');
  }catch(error){alert('Unable to open document: '+error.message);}
+ finally{button.disabled=false;}
+});
+
+document.addEventListener('click',async event=>{
+ const button=event.target.closest('[data-ems-archive]');
+ if(!button)return;
+ if(emsUserProfile?.is_admin!==true){alert('Only administrators can delete EMS vehicles.');return;}
+ const c=emsCases.find(x=>String(x.id)===button.dataset.emsArchive);
+ if(!c)return;
+ const name=c.registration_no||c.vin||c.ems_no;
+ if(!confirm('Remove '+name+' from the active EMS dashboard?\n\nIts history and documents will be preserved.'))return;
+ if(prompt('Type DELETE to confirm removing '+name+':')!=='DELETE')return;
+ button.disabled=true;
+ try{
+  const {error}=await supabaseClient.rpc('archive_ems_case',{p_case_id:c.id});
+  if(error)throw error;
+  if(String(emsSelectedCase?.id)===String(c.id))closeEmsWorkflow();
+  await loadEmsCases();
+  alert('Vehicle archived. Its history has been preserved.');
+ }catch(error){alert('Unable to archive EMS vehicle: '+error.message);}
  finally{button.disabled=false;}
 });
