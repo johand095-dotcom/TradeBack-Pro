@@ -656,7 +656,7 @@ function renderEmsDashboard() {
                     >
                         View
                     </button>
-                    ${emsUserProfile?.is_admin===true?'<button type="button" class="ems-archive-button" data-ems-archive="'+item.id+'">Delete</button>':''}
+                    ${emsUserProfile?.is_admin?'<button type="button" class="ems-archive-button" data-ems-archive="'+item.id+'">Delete</button>':''}
                 </td>
             </tr>
         `;
@@ -816,7 +816,9 @@ function openEmsWorkflow(emsId) {
 emsSelectedCase = selectedCase;
  const archiveWorkflowButton=document.getElementById('emsArchiveWorkflowButton');
  if(archiveWorkflowButton){
-  archiveWorkflowButton.classList.toggle('hidden',emsUserProfile?.is_admin!==true);
+  archiveWorkflowButton.classList.remove('hidden');
+  archiveWorkflowButton.disabled=!Boolean(emsUserProfile?.is_admin);
+  archiveWorkflowButton.title=emsUserProfile?.is_admin?'Archive this EMS vehicle':'Administrator permission required';
   archiveWorkflowButton.dataset.emsArchive=selectedCase.id;
  }
 
@@ -1419,7 +1421,7 @@ document.addEventListener('click',async e=>{
 document.addEventListener('click',async event=>{
  const button=event.target.closest('[data-ems-archive]');
  if(!button)return;
- if(emsUserProfile?.is_admin!==true){alert('Only administrators can delete EMS vehicles.');return;}
+ if(!emsUserProfile?.is_admin){alert('Only administrators can delete EMS vehicles.');return;}
  const c=emsCases.find(x=>String(x.id)===button.dataset.emsArchive);
  if(!c)return;
  const name=c.registration_no||c.vin||c.ems_no;
