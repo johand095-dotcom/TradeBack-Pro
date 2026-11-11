@@ -567,7 +567,7 @@ function renderEmsDashboard() {
     }
 
     const activeCases = emsCases.filter(
-        item => item.workflow_status !== 'Completed'
+        item => !['completed','released','collected'].includes(String(item.workflow_status||'').trim().toLowerCase())
     );
 
     // Update dashboard counters
@@ -1137,7 +1137,7 @@ if (confirmEmsJobCardButton) {
 document.addEventListener('click', async (event) => {
 
     const confirmForemanJobCardButton =
-        event.target.closest('#confirmForemanJobCardButton');
+        event.target.closest('#confirmEmsForemanReceivedButton');
 
     if (!confirmForemanJobCardButton) return;
         if (!emsSelectedCase) {
@@ -1241,9 +1241,17 @@ const EMS_PHASE_STEPS = [
  ['3','qc','Quality control passed'],['3','handover','Job card handed to Front Office'],
  ['3','accepted','Job card accepted by Front Office'],
  ['3','invoiced','Job card invoiced (invoice number)'],
- ['3','released','Vehicle released (release note required)'],
- ['3','signed','Signed invoice / proof attached']
+ ['4','released','Vehicle released (release note required)'],
+ ['4','signed','Signed invoice / proof attached']
 ];
+
+// Respect legacy workflow timestamps; never force users to repeat completed actions.
+function emsLegacyStepDone(c,key){
+ return Boolean((key==='booking'&&c.booking_date)||
+ (key==='arrival'&&c.vehicle_arrived_at)||
+ (key==='jobcard'&&c.job_card_opened_at)||
+ (key==='foreman'&&c.foreman_job_card_received_at));
+}
 const emsEscape = value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function renderEmsStepTracker(c){
  const panel=document.getElementById('emsStepTracker'), body=document.getElementById('emsStepTrackerBody');
@@ -1255,16 +1263,17 @@ async function renderEmsStepTracker(c){
  const events=data||[];
  body.innerHTML=[1,2,3,4].map(phase=>{
  const steps=EMS_PHASE_STEPS.filter(x=>Number(x[0])===phase);
- const completed=steps.filter(x=>events.some(e=>e.step_key===x[1])).length;
+ const completed=steps.filter(x=>events.some(e=>e.step_key===x[1]) || emsLegacyStepDone(c,x[1])).length;
  return `<details ${phase===Number(c.current_phase||1)?'open':''} style="margin:12px 0;padding:12px;border:1px solid #dce3eb;border-radius:8px">
  <summary style="cursor:pointer;font-weight:bold">Phase ${phase} — ${['Booking & Receiving','Workshop Control','Assessment, Authorisation & Repairs','Final Close-Out'][phase-1]} (${completed}/${steps.length})</summary>
  ${steps.length?steps.map(([_,key,label])=>{
  const event=events.find(e=>e.step_key===key);
+ const done=Boolean(event||emsLegacyStepDone(c,key));
  return `<div style="padding:10px;border-bottom:1px solid #e2e8f0">
- <strong>${emsEscape(label)}</strong> — ${event?'Completed':'Outstanding'}
+ <strong>${emsEscape(label)}</strong> — ${done?'Completed':'Outstanding'}
  ${event?'<small> · '+new Date(event.completed_at).toLocaleString('en-ZA')+'</small>':''}
  ${event?.notes?'<p>'+emsEscape(event.notes)+'</p>':''}
- ${!event&&phase===Number(c.current_phase||1)?'<button type="button" class="secondary-button" data-ems-step="'+key+'">Complete</button>':''}
+ ${!done&&phase===Number(c.current_phase||1)?'<button type="button" class="secondary-button" data-ems-step="'+key+'">Complete</button>':''}
  </div>`}).join(''):'<p>Final close-out follows signed invoice and supporting proof.</p>'}
  </details>`;
  }).join('');
@@ -1273,9 +1282,13 @@ document.addEventListener('click',async e=>{
  const btn=e.target.closest('[data-ems-step]');if(!btn||!emsSelectedCase)return;
  const key=btn.dataset.emsStep;
  if(['authorised','released','signed'].includes(key)){
-  alert('Supporting-document upload is required before this step can be completed.');return;
+  alert('This action requires an attached document and will be enabled after storage configuration is verified.');return;
  }
+ const stepDef=EMS_PHASE_STEPS.find(x=>x[1]===key);
+ const phase=Number(stepDef?.[0]);
+ if(phase!==Number(emsSelectedCase.current_phase||1)){alert('Complete the current phase first.');return;}
  const note=prompt('Completion notes / reference (Cancel to stop):');if(note===null)return;
+ if(['technician','invoiced'].includes(key)&&!note.trim()){alert('Technician name or invoice number is required.');return;}
  btn.disabled=true;
  try{
  const {data:{user},error:authError}=await supabaseClient.auth.getUser();
@@ -1284,7 +1297,22 @@ document.addEventListener('click',async e=>{
   ems_case_id:emsSelectedCase.id,step_key:key,notes:note,completed_by:user.id
  });
  if(error)throw error;
- await renderEmsStepTracker(emsSelectedCase);
+ const phaseSteps=EMS_PHASE_STEPS.filter(x=>Number(x[0])===phase);
+ const {data:recorded,error:readError}=await supabaseClient.from('ems_step_events')
+ .select('step_key').eq('ems_case_id',emsSelectedCase.id);
+ if(readError)throw readError;
+ const finished=new Set((recorded||[]).map(x=>x.step_key));
+ const phaseComplete=phaseSteps.every(x=>finished.has(x[1])||emsLegacyStepDone(emsSelectedCase,x[1]));
+ if(phaseComplete&&phase<4){
+   const timestamp=new Date().toISOString();
+   const {data:updated,error:updateError}=await supabaseClient.from('ems_cases')
+   .update({current_phase:phase+1,current_step:1,current_step_started_at:timestamp,updated_at:timestamp})
+   .eq('id',emsSelectedCase.id).eq('current_phase',phase).select().single();
+   if(updateError)throw new Error('Step saved, but phase progression failed: '+updateError.message);
+   emsSelectedCase=updated;
+ }
+ await loadEmsCases();
+ openEmsWorkflow(emsSelectedCase.id);
  }catch(err){alert('Unable to save step: '+err.message);btn.disabled=false;}
 });
 document.getElementById('downloadEmsReportButton')?.addEventListener('click',()=>{
