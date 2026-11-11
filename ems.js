@@ -595,12 +595,23 @@ function renderEmsDashboard() {
             activeCases.filter(item => Number(item.current_phase) === 4).length;
     }
 
+    // Search the active vehicle list without changing phase KPI totals.
+    const searchTerm = String(
+        document.getElementById('emsSearchInput')?.value || ''
+    ).trim().toLowerCase();
+    const visibleCases = activeCases.filter(item =>
+        !searchTerm || [
+            item.registration_no, item.vin, item.job_card_no,
+            item.ems_no, item.customer_name, item.workflow_status
+        ].some(value => String(value ?? '').toLowerCase().includes(searchTerm))
+    );
+
     // Empty state
-    if (activeCases.length === 0) {
+    if (visibleCases.length === 0) {
         dashboardBody.innerHTML = `
             <tr>
                 <td colspan="8" class="empty-table">
-                    No active EMS vehicles.
+                    ${searchTerm ? 'No vehicles match your search.' : 'No active EMS vehicles.'}
                 </td>
             </tr>
         `;
@@ -608,7 +619,7 @@ function renderEmsDashboard() {
     }
 
     // Render vehicle rows
-    dashboardBody.innerHTML = activeCases.map(item => {
+    dashboardBody.innerHTML = visibleCases.map(item => {
 
         const bookingDate = item.booking_date
             ? new Date(item.booking_date + 'T00:00:00').toLocaleDateString('en-ZA')
@@ -650,7 +661,7 @@ function renderEmsDashboard() {
         `;
     }).join('');
 
-    console.log('EMS dashboard rendered:', activeCases.length);
+    console.log('EMS dashboard rendered:', visibleCases.length);
 }
 /* ============================================================
    EMS VEHICLE WORKFLOW
@@ -1210,4 +1221,8 @@ document.addEventListener('click', async (event) => {
                 'Confirm Job Card Received';
                 }
 
+});
+// Filter dashboard rows instantly while preserving phase totals.
+document.addEventListener('input', event => {
+    if (event.target?.id === 'emsSearchInput') renderEmsDashboard();
 });
