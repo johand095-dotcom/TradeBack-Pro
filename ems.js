@@ -1262,21 +1262,37 @@ async function renderEmsStepTracker(c){
  if(error){body.textContent='Step history unavailable: '+error.message+' (TEST migration required).';return;}
  const events=data||[];
  body.innerHTML=[1,2,3,4].map(phase=>{
- const steps=EMS_PHASE_STEPS.filter(x=>Number(x[0])===phase);
- const completed=steps.filter(x=>events.some(e=>e.step_key===x[1]) || emsLegacyStepDone(c,x[1])).length;
- return `<details ${phase===Number(c.current_phase||1)?'open':''} style="margin:12px 0;padding:12px;border:1px solid #dce3eb;border-radius:8px">
- <summary style="cursor:pointer;font-weight:bold">Phase ${phase} — ${['Booking & Receiving','Workshop Control','Assessment, Authorisation & Repairs','Final Close-Out'][phase-1]} (${completed}/${steps.length})</summary>
- ${steps.length?steps.map(([_,key,label])=>{
- const event=events.find(e=>e.step_key===key);
- const done=Boolean(event||emsLegacyStepDone(c,key));
- return `<div style="padding:10px;border-bottom:1px solid #e2e8f0">
- <strong>${emsEscape(label)}</strong> — ${done?'Completed':'Outstanding'}
- ${event?'<small> · '+new Date(event.completed_at).toLocaleString('en-ZA')+'</small>':''}
- ${event?.notes?'<p>'+emsEscape(event.notes)+'</p>':''}
- ${event?.attachment_path?'<button type="button" class="secondary-button" data-ems-file="'+emsEscape(event.attachment_path)+'">View document</button>':''}
- ${!done&&phase===Number(c.current_phase||1)?'<button type="button" class="secondary-button" data-ems-step="'+key+'">Complete</button>':''}
- </div>`}).join(''):'<p>Final close-out follows signed invoice and supporting proof.</p>'}
- </details>`;
+  const steps=EMS_PHASE_STEPS.filter(x=>Number(x[0])===phase);
+  const completed=steps.filter(x=>events.some(e=>e.step_key===x[1])||emsLegacyStepDone(c,x[1])).length;
+  const active=phase===Number(c.current_phase||1);
+  const phaseName=['Booking & Receiving','Workshop Control','Assessment, Authorisation & Repairs','Final Close-Out'][phase-1];
+  return `<details class="ems-tracker-phase ${active?'is-current':''}" ${active?'open':''}>
+    <summary class="ems-tracker-summary">
+      <span class="ems-tracker-phase-number">${String(phase).padStart(2,'0')}</span>
+      <span class="ems-tracker-phase-title"><strong>Phase ${phase}</strong><span>${phaseName}</span></span>
+      <span class="ems-tracker-progress">${completed} / ${steps.length} complete</span>
+      <span class="ems-tracker-chevron" aria-hidden="true">⌄</span>
+    </summary>
+    <div class="ems-tracker-list">
+      ${steps.map(([_,key,label],index)=>{
+        const event=events.find(e=>e.step_key===key);
+        const done=Boolean(event||emsLegacyStepDone(c,key));
+        return `<div class="ems-tracker-row ${done?'is-done':''}">
+          <span class="ems-tracker-index">${done?'✓':index+1}</span>
+          <div class="ems-tracker-description">
+            <strong>${emsEscape(label)}</strong>
+            ${event?.notes?'<p>'+emsEscape(event.notes)+'</p>':''}
+            ${event?.completed_at?'<small>Completed '+new Date(event.completed_at).toLocaleString('en-ZA')+'</small>':''}
+          </div>
+          <span class="ems-tracker-status ${done?'is-done':''}">${done?'Completed':'Outstanding'}</span>
+          <div class="ems-tracker-actions">
+            ${event?.attachment_path?'<button type="button" class="secondary-button" data-ems-file="'+emsEscape(event.attachment_path)+'">View document</button>':''}
+            ${!done&&active?'<button type="button" class="secondary-button" data-ems-step="'+key+'">Complete step</button>':''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </details>`;
  }).join('');
 }
 document.addEventListener('click',async e=>{
