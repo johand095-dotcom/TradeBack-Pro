@@ -1315,10 +1315,32 @@ document.addEventListener('click',async e=>{
  openEmsWorkflow(emsSelectedCase.id);
  }catch(err){alert('Unable to save step: '+err.message);btn.disabled=false;}
 });
-document.getElementById('downloadEmsReportButton')?.addEventListener('click',()=>{
- const rows=[['EMS No','Registration','VIN','Job Card','Customer','Booking Date','Phase','Status','Started At'],
- ...emsCases.map(c=>[c.ems_no,c.registration_no,c.vin,c.job_card_no,c.customer_name,c.booking_date,c.current_phase,c.workflow_status,c.started_at])];
- const csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
- const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
- const a=document.createElement('a');a.href=url;a.download='ELT-EMS-Report-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(url);
+document.getElementById('downloadEmsReportButton')?.addEventListener('click',async()=>{
+ const button=document.getElementById('downloadEmsReportButton');
+ button.disabled=true;
+ try {
+  const {data:history,error}=await supabaseClient.from('ems_step_events')
+    .select('ems_case_id,step_key,completed_at,notes');
+  if(error)throw error;
+  const headers=['EMS No','Registration','VIN','Job Card','Customer','Booking Date',
+    'Phase','Status','Days In Progress','Completed Steps','Outstanding Steps',
+    'Next Outstanding Action','Latest Step Completion'];
+  const rows=emsCases.map(c=>{
+   const entries=(history||[]).filter(e=>String(e.ems_case_id)===String(c.id));
+   const finished=new Set(entries.map(e=>e.step_key));
+   const complete=EMS_PHASE_STEPS.filter(x=>finished.has(x[1])||emsLegacyStepDone(c,x[1]));
+   const outstanding=EMS_PHASE_STEPS.filter(x=>!finished.has(x[1])&&!emsLegacyStepDone(c,x[1]));
+   const days=c.started_at?Math.max(0,Math.floor((Date.now()-new Date(c.started_at).getTime())/86400000)):'';
+   const last=entries.map(e=>e.completed_at).filter(Boolean).sort().at(-1)||'';
+   return [c.ems_no,c.registration_no,c.vin,c.job_card_no,c.customer_name,c.booking_date,
+    c.current_phase,c.workflow_status,days,complete.length,outstanding.length,
+    outstanding[0]?.[2]||'None',last];
+  });
+  const csv=[headers,...rows].map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')).join(',')).join('\r\n');
+  const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
+  const a=document.createElement('a');a.href=url;
+  a.download='ELT-EMS-Report-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(error){alert('EMS report export failed: '+error.message);}
+ finally{button.disabled=false;}
 });
