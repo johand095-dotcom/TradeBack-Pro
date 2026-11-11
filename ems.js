@@ -84,6 +84,10 @@ function setEmsLoginMessage(
 async function loadEmsUserProfile() {
 
     if (!emsSession?.user?.id) {
+        const {data:{user},error:authError}=await supabaseClient.auth.getUser();
+        if(!authError&&user) emsSession={user};
+    }
+    if (!emsSession?.user?.id) {
 
         emsUserProfile = null;
 
@@ -545,6 +549,8 @@ async function loadEmsCases() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    await loadEmsUserProfile();
+    updateEmsSignedInUser();
     await loadEmsCases();
 });
 
@@ -1436,4 +1442,88 @@ document.addEventListener('click',async event=>{
   alert('Vehicle archived. Its history has been preserved.');
  }catch(error){alert('Unable to archive EMS vehicle: '+error.message);}
  finally{button.disabled=false;}
+});
+
+/* EMS Excel bulk import: previews before writing to LIVE, skips existing job cards. */
+let emsImportRows=[];
+const emsBulkPanel=()=>document.getElementById('emsBulkUploadPanel');
+document.getElementById('emsBulkUploadButton')?.addEventListener('click',()=>{
+ emsBulkPanel()?.classList.remove('hidden');
+ emsBulkPanel()?.scrollIntoView({behavior:'smooth'});
+});
+document.getElementById('emsBulkCloseButton')?.addEventListener('click',()=>emsBulkPanel()?.classList.add('hidden'));
+document.getElementById('emsBulkFile')?.addEventListener('change',async event=>{
+ const summary=document.getElementById('emsBulkSummary'),preview=document.getElementById('emsBulkPreview');
+ const commit=document.getElementById('emsBulkCommitButton');
+ commit.disabled=true;emsImportRows=[];
+ try{
+  if(!window.XLSX)throw Error('Excel reader unavailable. Check internet connection.');
+  const file=event.target.files?.[0];if(!file)return;
+  const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+  const rows=XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]],{defval:''});
+  if(!rows.length)throw Error('Spreadsheet has no data rows.');
+  const required=['RO Number','Date Created','Customer Name','VIN Number','Registration Number'];
+  for(const header of required)if(!(header in rows[0]))throw Error('Missing required column: '+header);
+  const existing=new Set(emsCases.map(c=>String(c.job_card_no||'').trim().toUpperCase()).filter(Boolean));
+  const seen=new Set();
+  const dateString=value=>{
+   if(value instanceof Date&&!isNaN(value))return value.toISOString().slice(0,10);
+   if(typeof value==='number'){const d=XLSX.SSF.parse_date_code(value);if(d)return [d.y,String(d.m).padStart(2,'0'),String(d.d).padStart(2,'0')].join('-');}
+   const d=new Date(value);return isNaN(d)?'':d.toISOString().slice(0,10);
+  };
+  emsImportRows=rows.map((row,index)=>{
+   const job=String(row['RO Number']||'').trim(),vin=String(row['VIN Number']||'').trim();
+   const customer=String(row['Customer Name']||'').trim(),registration=String(row['Registration Number']||'').trim();
+   const date=dateString(row['Date Created']);
+   const key=job.toUpperCase();
+   const reason=!job||!vin||!customer||!date?'Missing required data':existing.has(key)?'Already in EMS':seen.has(key)?'Duplicate in file':'';
+   seen.add(key);
+   const sourceStatus=String(row['Job Status']||'').trim();
+   const phase=sourceStatus.toUpperCase()==='WIP'?3:2;
+   return {index:index+2,job,vin,customer,registration,date,reason,sourceStatus,phase,
+    advisor:String(row['Service Advisor']||'').trim(),jobType:String(row['Job Type']||'').trim(),
+    company:String(row['Co Number']||'').trim(),description:String(row['Customer States / Delete Reason']||'').trim()};
+  });
+  const valid=emsImportRows.filter(x=>!x.reason);
+  summary.textContent=rows.length+' rows found · '+valid.length+' ready · '+(rows.length-valid.length)+' skipped. Status mapping: Estimate → Phase 2; WIP → Phase 3.';
+  preview.innerHTML='<table class="ems-import-table"><thead><tr><th>Row</th><th>Job Card</th><th>Registration</th><th>Customer</th><th>Phase</th><th>Result</th></tr></thead><tbody>'+
+   emsImportRows.map(x=>'<tr><td>'+x.index+'</td><td>'+emsEscape(x.job)+'</td><td>'+emsEscape(x.registration)+'</td><td>'+emsEscape(x.customer)+'</td><td>'+x.phase+'</td><td>'+emsEscape(x.reason||'Ready')+'</td></tr>').join('')+'</tbody></table>';
+  commit.disabled=!valid.length;
+ }catch(error){summary.textContent='Import preview failed: '+error.message;preview.innerHTML='';}
+});
+document.getElementById('emsBulkCommitButton')?.addEventListener('click',async event=>{
+ const button=event.currentTarget,valid=emsImportRows.filter(x=>!x.reason);
+ if(!valid.length)return;
+ if(!confirm('Import '+valid.length+' EMS vehicles into the LIVE database?'))return;
+ button.disabled=true;
+ const summary=document.getElementById('emsBulkSummary');
+ let imported=0,failed=[];
+ try{
+  const {data:{user},error:authError}=await supabaseClient.auth.getUser();
+  if(authError||!user)throw authError||Error('Please sign in');
+  // Reload immediately before import to prevent obvious duplicate job cards.
+  const {data:current,error:readError}=await supabaseClient.from('ems_cases').select('job_card_no');
+  if(readError)throw readError;
+  const existing=new Set((current||[]).map(x=>String(x.job_card_no||'').trim().toUpperCase()));
+  for(const x of valid){
+   if(existing.has(x.job.toUpperCase())){failed.push(x.job+': already exists');continue;}
+   const started=x.date+'T08:00:00+02:00';
+   const payload={ems_no:'EMS-IMP-'+x.job.replace(/[^A-Za-z0-9]/g,'').slice(0,30),
+    vin:x.vin,registration_no:x.registration||null,vehicle_make:'Not specified',vehicle_model:'Not specified',
+    customer_name:x.customer,job_card_no:x.job,booking_date:x.date,
+    booking_details:x.description||'Existing EMS job imported',
+    notes:['Bulk import 11 Nov 2026','Service advisor: '+x.advisor,'Source job status: '+x.sourceStatus,
+     'Job type: '+x.jobType,'Company: '+x.company].join(' | '),
+    workflow_status:x.sourceStatus.toUpperCase()==='WIP'?'Repairs in Progress':'Estimate',
+    current_phase:x.phase,current_step:1,started_at:started,current_step_started_at:started,
+    updated_at:new Date().toISOString(),created_by:user.id};
+   const {error}=await supabaseClient.from('ems_cases').insert(payload);
+   if(error)failed.push(x.job+': '+error.message);
+   else{imported++;existing.add(x.job.toUpperCase());}
+  }
+  summary.textContent=imported+' vehicles imported; '+failed.length+' skipped or failed. '+failed.slice(0,8).join(' | ');
+  await loadEmsCases();
+  emsImportRows=[];document.getElementById('emsBulkFile').value='';
+ }catch(error){summary.textContent='Import stopped: '+error.message;}
+ finally{button.disabled=true;}
 });
