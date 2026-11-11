@@ -887,6 +887,7 @@ if (currentPhase === 1) {
 }
 
 workflowSection.classList.remove('hidden');
+    renderEmsStepTracker(selectedCase).catch(console.error);
     workflowSection.scrollIntoView({
         behavior: 'smooth',
         block: 'start'
@@ -1225,4 +1226,71 @@ document.addEventListener('click', async (event) => {
 // Filter dashboard rows instantly while preserving phase totals.
 document.addEventListener('input', event => {
     if (event.target?.id === 'emsSearchInput') renderEmsDashboard();
+});
+
+/* EMS phase dropdown, persisted audit steps and CSV reporting (TEST branch). */
+const EMS_PHASE_STEPS = [
+ ['1','booking','Vehicle booked'],['1','arrival','Vehicle arrives'],['1','jobcard','Job card opened'],
+ ['2','foreman','Foreman receives job card'],['2','technician','Technician assigned'],
+ ['3','assessed','Vehicle assessed'],['3','estimate','Estimate completed'],
+ ['3','frontoffice','Estimate submitted to Front Office'],
+ ['3','authrequest','Estimate submitted for authorisation'],
+ ['3','assessor','Assessor required / not required'],
+ ['3','authorised','Authorisation received (document required)'],
+ ['3','repairsstart','Repairs in progress'],['3','repairsdone','Repairs completed'],
+ ['3','qc','Quality control passed'],['3','handover','Job card handed to Front Office'],
+ ['3','accepted','Job card accepted by Front Office'],
+ ['3','invoiced','Job card invoiced (invoice number)'],
+ ['3','released','Vehicle released (release note required)'],
+ ['3','signed','Signed invoice / proof attached']
+];
+const emsEscape = value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function renderEmsStepTracker(c){
+ const panel=document.getElementById('emsStepTracker'), body=document.getElementById('emsStepTrackerBody');
+ if(!panel||!body)return;
+ panel.classList.remove('hidden');
+ const {data,error}=await supabaseClient.from('ems_step_events')
+   .select('step_key,completed_at,notes').eq('ems_case_id',c.id);
+ if(error){body.textContent='Step history unavailable: '+error.message+' (TEST migration required).';return;}
+ const events=data||[];
+ body.innerHTML=[1,2,3,4].map(phase=>{
+ const steps=EMS_PHASE_STEPS.filter(x=>Number(x[0])===phase);
+ const completed=steps.filter(x=>events.some(e=>e.step_key===x[1])).length;
+ return `<details ${phase===Number(c.current_phase||1)?'open':''} style="margin:12px 0;padding:12px;border:1px solid #dce3eb;border-radius:8px">
+ <summary style="cursor:pointer;font-weight:bold">Phase ${phase} — ${['Booking & Receiving','Workshop Control','Assessment, Authorisation & Repairs','Final Close-Out'][phase-1]} (${completed}/${steps.length})</summary>
+ ${steps.length?steps.map(([_,key,label])=>{
+ const event=events.find(e=>e.step_key===key);
+ return `<div style="padding:10px;border-bottom:1px solid #e2e8f0">
+ <strong>${emsEscape(label)}</strong> — ${event?'Completed':'Outstanding'}
+ ${event?'<small> · '+new Date(event.completed_at).toLocaleString('en-ZA')+'</small>':''}
+ ${event?.notes?'<p>'+emsEscape(event.notes)+'</p>':''}
+ ${!event&&phase===Number(c.current_phase||1)?'<button type="button" class="secondary-button" data-ems-step="'+key+'">Complete</button>':''}
+ </div>`}).join(''):'<p>Final close-out follows signed invoice and supporting proof.</p>'}
+ </details>`;
+ }).join('');
+}
+document.addEventListener('click',async e=>{
+ const btn=e.target.closest('[data-ems-step]');if(!btn||!emsSelectedCase)return;
+ const key=btn.dataset.emsStep;
+ if(['authorised','released','signed'].includes(key)){
+  alert('Supporting-document upload is required before this step can be completed.');return;
+ }
+ const note=prompt('Completion notes / reference (Cancel to stop):');if(note===null)return;
+ btn.disabled=true;
+ try{
+ const {data:{user},error:authError}=await supabaseClient.auth.getUser();
+ if(authError||!user)throw authError||new Error('Please sign in');
+ const {error}=await supabaseClient.from('ems_step_events').insert({
+  ems_case_id:emsSelectedCase.id,step_key:key,notes:note,completed_by:user.id
+ });
+ if(error)throw error;
+ await renderEmsStepTracker(emsSelectedCase);
+ }catch(err){alert('Unable to save step: '+err.message);btn.disabled=false;}
+});
+document.getElementById('downloadEmsReportButton')?.addEventListener('click',()=>{
+ const rows=[['EMS No','Registration','VIN','Job Card','Customer','Booking Date','Phase','Status','Started At'],
+ ...emsCases.map(c=>[c.ems_no,c.registration_no,c.vin,c.job_card_no,c.customer_name,c.booking_date,c.current_phase,c.workflow_status,c.started_at])];
+ const csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+ const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='ELT-EMS-Report-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(url);
 });
