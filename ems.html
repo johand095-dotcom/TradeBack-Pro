@@ -13,7 +13,7 @@
 
     <link
         rel="stylesheet"
-        href="ems.css"
+        href="ems.css?v=20261111-tracker-layout"
     >
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -592,13 +592,16 @@
             </p>
         </div>
 
-        <button
+        <div class="ems-workflow-header-actions">
+          <button id="emsArchiveWorkflowButton" class="ems-archive-button" type="button">Delete Vehicle</button>
+                  <button
             id="closeEmsWorkflowButton"
             class="secondary-button"
             type="button"
         >
             Close
         </button>
+        </div>
 
     </div>
 
@@ -800,6 +803,11 @@
         </div>
 
     </div>
+</section>
+
+<section id="emsStepTracker" class="ems-phase-workflow hidden" style="margin-top:20px">
+  <div class="ems-phase-header"><div><span class="eyebrow">FULL WORKFLOW</span><h3>EMS Step Tracker</h3><p>Expand any phase to review and complete its steps.</p></div></div>
+  <div id="emsStepTrackerBody"></div>
 </section>
 
             <!-- =================================================
@@ -1016,7 +1024,7 @@
     </div>
 
 
-    <script src="ems.js"></script>
+    <script src="ems.js?v=20261111-visible-archive"></script>
 
 </body>
 </html>
