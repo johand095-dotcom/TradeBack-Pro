@@ -17,11 +17,21 @@
     >
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
 
-    <!-- =====================================================
+    <section id="emsBulkUploadPanel" class="panel hidden" style="margin:18px 0;padding:22px">
+ <div class="panel-heading"><div><span class="eyebrow">EMS DATA IMPORT</span><h3>Bulk Upload Existing Vehicles</h3>
+ <p>Preview and validate the Excel data before importing. Existing job cards will be skipped.</p></div>
+ <button type="button" class="secondary-button" id="emsBulkCloseButton">Close</button></div>
+ <input type="file" id="emsBulkFile" accept=".xlsx,.xls,.csv" style="margin:16px 0">
+ <div id="emsBulkSummary" role="status"></div>
+ <div id="emsBulkPreview" style="max-height:300px;overflow:auto"></div>
+ <button type="button" id="emsBulkCommitButton" class="primary-button" disabled>Import Valid Vehicles</button>
+</section>
+<!-- =====================================================
          EMS MODULE
          ELT VEHICLE SUITE
          ===================================================== -->
@@ -192,6 +202,7 @@
                         Refresh
                     </button>
 
+                    <button id="emsBulkUploadButton" class="secondary-button" type="button">Bulk Upload</button>
                     <button
                         id="downloadEmsReportButton"
                         class="secondary-button"
@@ -1024,7 +1035,7 @@
     </div>
 
 
-    <script src="ems.js?v=20261111-visible-archive"></script>
+    <script src="ems.js?v=20261111-bulk-admin"></script>
 
 </body>
 </html>
