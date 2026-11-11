@@ -1410,3 +1410,7 @@ button {
  .ems-tracker-status { grid-column:2; }
  .ems-tracker-actions { grid-column:2; justify-content:flex-start; }
 }
+
+.ems-archive-button { margin-left:6px; padding:9px 12px; background:#fff; border:1px solid #e9b4b4; color:#a32222; border-radius:8px; font-weight:700; cursor:pointer; }
+.ems-archive-button:hover { background:#fff1f1; }
+.ems-archive-button:disabled { opacity:.5; cursor:wait; }
