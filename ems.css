@@ -1419,3 +1419,5 @@ button {
 .ems-workflow-header-actions .ems-archive-button { margin-left:0; }
 
 .ems-import-table{width:100%;border-collapse:collapse;margin:12px 0 18px;font-size:13px}.ems-import-table th,.ems-import-table td{padding:9px 12px;border-bottom:1px solid #e2e8f0;text-align:left}.ems-import-table th{background:#edf3f8;color:#082f5b;position:sticky;top:0}#emsBulkSummary{font-weight:650;color:#0b3d68;margin:8px 0 14px}#emsBulkCommitButton{margin-top:12px}
+
+.ems-step-file-label{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;font-weight:700;color:#0b3d68}.ems-step-file-label input{max-width:205px;font-size:12px}.ems-step-file-name{font-size:11px;color:#64748b;max-width:180px;overflow-wrap:anywhere}.ems-tracker-actions{align-items:center}
