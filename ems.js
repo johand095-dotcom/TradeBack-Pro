@@ -1301,6 +1301,7 @@ async function renderEmsStepTracker(c){
           <span class="ems-tracker-status ${done?'is-done':''}">${done?'Completed':'Outstanding'}</span>
           <div class="ems-tracker-actions">
             ${event?.attachment_path?'<button type="button" class="secondary-button" data-ems-file="'+emsEscape(event.attachment_path)+'">View document</button>':''}
+            ${!done&&active&&['authorised','released','signed'].includes(key)?'<label class="ems-step-file-label">Attach document <input type="file" data-ems-attachment="'+key+'" accept=".pdf,.jpg,.jpeg,.png,.webp" aria-label="Attach supporting document for '+emsEscape(label)+'"></label><span class="ems-step-file-name" data-ems-file-name="'+key+'">No file selected</span>':''}
             ${!done&&active?'<button type="button" class="secondary-button" data-ems-step="'+key+'">Complete step</button>':''}
           </div>
         </div>`;
@@ -1320,8 +1321,8 @@ document.addEventListener('click',async e=>{
  const requiresFile=['authorised','released','signed'].includes(key);
  let attachmentPath=null;
  if(requiresFile){
-  const file=await emsChooseDocument();
-  if(!file)return;
+  const file=document.querySelector('[data-ems-attachment="'+key+'"]')?.files?.[0];
+  if(!file){alert('Please attach the required authorisation or release document before completing this step.');return;}
   const extension=file.name.split('.').pop().toLowerCase();
   if(!['pdf','jpg','jpeg','png','webp'].includes(extension)||file.size>10485760){
    alert('Please select a PDF or image smaller than 10 MB.');return;
@@ -1526,4 +1527,11 @@ document.getElementById('emsBulkCommitButton')?.addEventListener('click',async e
   emsImportRows=[];document.getElementById('emsBulkFile').value='';
  }catch(error){summary.textContent='Import stopped: '+error.message;}
  finally{button.disabled=true;}
+});
+
+document.addEventListener('change',event=>{
+ const input=event.target.closest('[data-ems-attachment]');
+ if(!input)return;
+ const label=document.querySelector('[data-ems-file-name="'+input.dataset.emsAttachment+'"]');
+ if(label)label.textContent=input.files?.[0]?.name||'No file selected';
 });
