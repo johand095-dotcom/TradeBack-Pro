@@ -8471,6 +8471,9 @@ document
                             'Priority':
                                 priority,
 
+                            'Vehicle Location':
+                                item.current_location || '',
+
                             'Current Phase':
                                 item.current_phase || '',
 
