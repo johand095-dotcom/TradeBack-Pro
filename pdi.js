@@ -5470,7 +5470,7 @@ function attachPdiStepButtons() {
             Number(stepId)
     );
 if (
-    Number(stepRecord?.step_no) === 42
+    Number(stepRecord?.step_no) === 43
 ) {
     openModificationReportedModal(
         stepRecord
@@ -5480,7 +5480,7 @@ if (
 }
 
 if (
-    Number(stepRecord?.step_no) === 43
+    Number(stepRecord?.step_no) === 44
 ) {
     openWarrantyRegistrationModal(
         stepRecord
@@ -5490,7 +5490,7 @@ if (
 }
 
 if (
-    Number(stepRecord?.step_no) === 44
+    Number(stepRecord?.step_no) === 45
 ) {
     openDigitalDeliveryNoteModal(
         stepRecord
@@ -6176,7 +6176,7 @@ try {
     const uploadDeliveryEvidence = async (file, label) => {
         if (!file) return null;
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const path = `pdi-cases/${selectedPdiCaseId}/step-44/${label}-${Date.now()}-${safeName}`;
+        const path = `pdi-cases/${selectedPdiCaseId}/step-45/${label}-${Date.now()}-${safeName}`;
         const { error } = await supabaseClient.storage
             .from('bodybuilder-photos')
             .upload(path, file, {
@@ -6261,7 +6261,7 @@ try {
 
 
     // -----------------------------------------
-    // COMPLETE STEP 44
+    // COMPLETE STEP 45
     // -----------------------------------------
 
    const {
@@ -6678,7 +6678,7 @@ document
                         file.name;
 
                     attachmentPath =
-                        `pdi-cases/${stepRecord.pdi_case_id}/step-42/${Date.now()}-${safeFileName}`;
+                        `pdi-cases/${stepRecord.pdi_case_id}/step-43/${Date.now()}-${safeFileName}`;
 
                     const {
                         error: uploadError
@@ -6706,7 +6706,7 @@ document
                 }
 
                 /* =========================================
-                   SAVE STEP 42 RESPONSE / EVIDENCE
+                   SAVE STEP 43 RESPONSE / EVIDENCE
                    ========================================= */
 
              const {
@@ -6947,7 +6947,7 @@ function openWarrantyRegistrationModal(stepRecord) {
                         );
 
                     const attachmentPath =
-                        `pdi-cases/${stepRecord.pdi_case_id}/step-43/${Date.now()}-${safeFileName}`;
+                        `pdi-cases/${stepRecord.pdi_case_id}/step-44/${Date.now()}-${safeFileName}`;
 
                     const {
                         error: uploadError
@@ -8470,6 +8470,9 @@ document
 
                             'Priority':
                                 priority,
+
+                            'Vehicle Location':
+                                item.current_location || '',
 
                             'Current Phase':
                                 item.current_phase || '',
