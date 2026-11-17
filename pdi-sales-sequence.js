@@ -64,6 +64,13 @@ function install(){
  if(typeof loadPdiCases!=='function'){return;}
  const original=loadPdiCases;
  loadPdiCases=async function(...args){const result=await original.apply(this,args);render();return result;};
+ const toggle=byId('pdiSequenceToggle'),content=byId('pdiSequenceContent');
+ if(toggle&&content)toggle.addEventListener('click',()=>{
+   const opening=content.hidden;
+   content.hidden=!opening;
+   toggle.setAttribute('aria-expanded',String(opening));
+   toggle.textContent=opening?'Hide Sequence ▲':'Show Sequence ▼';
+ });
  byId('pdiSequenceRefresh')?.addEventListener('click',async()=>{await loadPdiCases();});
  render();
 }
