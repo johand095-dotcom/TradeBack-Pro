@@ -68,9 +68,9 @@ async function start(){
  if(!session){$('accessText').textContent='Please sign in through PDI Operations first.';return;}
  const {data:allowed,error}=await client.rpc('stock_access_allowed');
  if(error||allowed!==true){$('accessText').textContent='Access restricted to Sales Admin, authorised management accounts and full administrators.';return;}
- const {data:profile}=await client.from('user_profiles').select('roles').eq('user_id',session.user.id).maybeSingle();
- const roles=Array.isArray(profile?.roles)?profile.roles:[];
- if(roles.some(role=>String(role).toLowerCase()==='administrator'||String(role).toLowerCase()==='admin'))$('alertTestPanel').hidden=false;
+ // Read-only simulator: visible to users already authorised by the stock_access_allowed RPC.
+ // This avoids depending on a client-side profile role lookup with inconsistent role shapes.
+ $('alertTestPanel').hidden=false;
  $('accessPanel').hidden=true;$('stockApp').hidden=false;
  await refresh();
 }
