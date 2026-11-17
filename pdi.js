@@ -852,6 +852,9 @@ allocated_salesperson_id,
 allocated_salesperson_name,
 current_location,
 sales_priority_sequence,
+tradeback_option,
+floorplan_provider,
+vehicle_range,
 ordered_at,
 received_at,
         workflow_status,
@@ -1870,6 +1873,7 @@ ${
                 ? `<span class="pdi-badge pdi-badge-stock">${classification}</span>`
                 : '-'
 }
+<div style="margin-top:5px;font-size:12px"><strong>Floorplan:</strong> ${item.floorplan_provider || 'Not set'} / ${item.vehicle_range || 'Not set'}<br><strong>Tradeback:</strong> ${item.tradeback_option || 'Not set'}</div>
 </td>
 
                             <td>
