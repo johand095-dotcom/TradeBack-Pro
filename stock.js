@@ -54,11 +54,23 @@ async function refresh(){
  if(error){setStatus('Could not load floorplan records: '+error.message);return;}
  records=data||[];setStatus(records.length+' floorplan records loaded.');render();
 }
+function previewAlert(){
+ const days=Number($('alertTestDays').value);
+ const state=days<0?'OVERDUE':days<=7?'CRITICAL':days<=15?'WARNING':'NORMAL';
+ const description=days<0?Math.abs(days)+' days overdue':days===0?'Payment due today':days+' days remaining';
+ const node=$('alertTestResult');
+ node.textContent='TEST ONLY — '+state+' · '+description;
+ node.style.cssText='padding:14px;border-radius:8px;font-weight:700;background:'+(days<=7?'#ffe5e5':days<=15?'#fff1d9':'#e5f3ed');
+}
+$('runAlertTest').addEventListener('click',previewAlert);
 async function start(){
  const {data:{session:current}}=await client.auth.getSession();session=current;
  if(!session){$('accessText').textContent='Please sign in through PDI Operations first.';return;}
  const {data:allowed,error}=await client.rpc('stock_access_allowed');
  if(error||allowed!==true){$('accessText').textContent='Access restricted to Sales Admin, authorised management accounts and full administrators.';return;}
+ const {data:profile}=await client.from('user_profiles').select('roles').eq('user_id',session.user.id).maybeSingle();
+ const roles=Array.isArray(profile?.roles)?profile.roles:[];
+ if(roles.some(role=>String(role).toLowerCase()==='administrator'||String(role).toLowerCase()==='admin'))$('alertTestPanel').hidden=false;
  $('accessPanel').hidden=true;$('stockApp').hidden=false;
  await refresh();
 }
