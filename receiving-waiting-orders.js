@@ -24,23 +24,111 @@ function setReceivingCoreVehicleFieldsLocked(){
 }
 
 async function loadReceivingPdiVehicleIndex(){
-  const {data,error}=await supabaseClient.from('pdi_cases').select(`id,receiving_no,stock_no,vin,make,model,oem_supplier,order_status,order_reference,oem_eta,stock_classification,allocated_customer,ordered_at,received_at,workflow_status,current_phase,current_step`).order('ordered_at',{ascending:false});
-  if(error){console.error('Could not load PDI vehicle index:',error);setReceivingVehicleSourceMessage('Waiting Orders could not be loaded. Manual creation is disabled to protect against duplicates.','error');return false;}
-  receivingAllPdiCases=data||[];
-  receivingWaitingOrders=receivingAllPdiCases.filter(x=>x.order_status==='Awaiting Arrival'&&!x.received_at);
+  // Supabase REST returns a maximum page size. Load all pages so recently ordered
+  // vehicles cannot disappear behind older records.
+  const fields='id,receiving_no,stock_no,vin,make,model,oem_supplier,order_status,order_reference,oem_eta,stock_classification,allocated_customer,ordered_at,received_at,workflow_status,current_phase,current_step';
+  const all=[];const pageSize=500;
+  try{
+    for(let offset=0;offset<10000;offset+=pageSize){
+      const {data,error}=await supabaseClient.from('pdi_cases').select(fields)
+        .order('id',{ascending:false}).range(offset,offset+pageSize-1);
+      if(error)throw error;
+      all.push(...(data||[]));
+      if(!data||data.length<pageSize)break;
+      if(offset+pageSize>=10000)throw new Error('Vehicle index exceeds safety limit; contact administrator.');
+    }
+  }catch(error){
+    console.error('Could not load PDI vehicle index:',error);
+    setReceivingVehicleSourceMessage('Waiting Orders could not be loaded: '+error.message+'. Do not use Manual Receiving to bypass an existing order.','error');
+    return false;
+  }
+  receivingAllPdiCases=all;
+  // Match the PDI Awaiting Vehicle Arrival register exactly.
+  receivingWaitingOrders=all.filter(x=>x.ordered_at&&x.order_status==='Awaiting Arrival'&&!x.received_at);
   renderReceivingWaitingOrderSelector();
+  renderReceivingWaitingOrderMatches();
   setReceivingCoreVehicleFieldsLocked();
   return true;
 }
 
 function receivingWaitingOrderLabel(x){const vehicle=[x.make,x.model].filter(Boolean).join(' ');const vin=x.vin||'VIN not captured';const ref=x.order_reference?`PO ${x.order_reference}`:'No PO';const customer=x.allocated_customer?` · ${x.allocated_customer}`:'';return `${vin} · ${vehicle||'Vehicle'} · ${ref}${customer}`;}
 
+function receivingSearchMatches(){
+  const query=(document.getElementById('receivingWaitingOrderSearch')?.value||'').trim().toLowerCase();
+  if(!query)return [];
+  const words=query.split(/\\s+/).filter(Boolean);
+  return receivingWaitingOrders.filter(x=>{
+    const haystack=[x.vin,x.stock_no,x.make,x.model,x.oem_supplier,x.order_reference,x.allocated_customer,x.stock_classification].join(' ').toLowerCase();
+    return words.every(w=>haystack.includes(w));
+  }).sort((a,b)=>{
+    const av=normaliseReceivingVin(a.vin),bv=normaliseReceivingVin(b.vin),n=normaliseReceivingVin(query);
+    return (bv===n?1:0)-(av===n?1:0)|| (bv.startsWith(n)?1:0)-(av.startsWith(n)?1:0)||
+      new Date(b.ordered_at||0)-new Date(a.ordered_at||0);
+  });
+}
+
 function renderReceivingWaitingOrderSelector(){
-  const select=document.getElementById('receivingWaitingOrderSelect');const count=document.getElementById('receivingWaitingOrderCount');
-  if(count)count.textContent=`${receivingWaitingOrders.length} vehicle${receivingWaitingOrders.length===1?'':'s'} awaiting arrival`;
-  if(!select)return;const selected=String(receivingSelectedPdiCaseId||'');
-  select.innerHTML='<option value="">Select a vehicle from Waiting Orders...</option>'+receivingWaitingOrders.map(x=>`<option value="${x.id}">${receivingWaitingOrderLabel(x)}</option>`).join('');
-  if(selected&&receivingWaitingOrders.some(x=>String(x.id)===selected))select.value=selected;
+  const select=document.getElementById('receivingWaitingOrderSelect');
+  const count=document.getElementById('receivingWaitingOrderCount');
+  const search=document.getElementById('receivingWaitingOrderSearch');
+  const query=search?.value.trim()||'';
+  const matches=query?receivingSearchMatches():receivingWaitingOrders;
+  if(count)count.textContent=query?
+    `${matches.length} matching vehicle${matches.length===1?'':'s'} · ${receivingWaitingOrders.length} awaiting arrival`:
+    `${receivingWaitingOrders.length} vehicles awaiting arrival · Search to select`;
+  if(!select)return;
+  const selected=String(receivingSelectedPdiCaseId||'');
+  select.replaceChildren(new Option(query?'Select a matching Waiting Order...':'Search first, or select a Waiting Order...',''));
+  // Keep selected order available even when the search changes.
+  const shown=matches.slice(0,150);
+  const selectedOrder=receivingWaitingOrders.find(x=>String(x.id)===selected);
+  if(selectedOrder&&!shown.some(x=>String(x.id)===selected))shown.unshift(selectedOrder);
+  for(const item of shown)select.add(new Option(receivingWaitingOrderLabel(item),String(item.id)));
+  if(selectedOrder)select.value=selected;
+}
+
+function renderReceivingWaitingOrderMatches(){
+  const results=document.getElementById('receivingWaitingOrderResults');
+  if(!results)return;
+  results.replaceChildren();
+  const query=document.getElementById('receivingWaitingOrderSearch')?.value.trim();
+  if(!query){
+    results.textContent='Type part of a VIN, stock number, customer, make or model to see matching orders. You can also use the dropdown.';
+    return;
+  }
+  const matches=receivingSearchMatches();
+  if(!matches.length){
+    results.textContent='No matching awaiting orders. Check the spelling or click Refresh Waiting Orders. Manual Receiving is only for genuinely unplanned arrivals.';
+    return;
+  }
+  const heading=document.createElement('div');
+  heading.textContent=`Found ${matches.length} matching order${matches.length===1?'':'s'}. Click the correct vehicle below to select it.`;
+  heading.style.cssText='font-weight:700;margin:8px 0';
+  results.append(heading);
+  for(const item of matches.slice(0,30)){
+    const button=document.createElement('button');
+    button.type='button';button.className='ghost';
+    button.style.cssText='display:block;text-align:left;width:100%;margin:6px 0;padding:12px;border:1px solid #cbd5e1;border-radius:9px;white-space:normal;background:#fff;color:#123451;cursor:pointer';
+    if(String(item.id)===String(receivingSelectedPdiCaseId)){
+      button.style.borderColor='#16803a';button.style.background='#ecfdf3';
+    }
+    const primary=document.createElement('strong');
+    primary.textContent=(item.vin||'VIN not captured')+' · '+[item.make,item.model].filter(Boolean).join(' ');
+    const secondary=document.createElement('div');
+    secondary.style.cssText='font-size:13px;margin-top:4px;color:#52647a';
+    secondary.textContent='Stock: '+(item.stock_no||'—')+' · PO: '+(item.order_reference||'—')+
+      ' · Customer: '+(item.allocated_customer||'—');
+    button.append(primary,secondary);
+    button.addEventListener('click',()=>{
+      selectReceivingWaitingOrder(String(item.id));
+      renderReceivingWaitingOrderSelector();renderReceivingWaitingOrderMatches();
+    });
+    results.append(button);
+  }
+  if(matches.length>30){
+    const note=document.createElement('p');note.textContent='Showing the first 30 matches. Add more characters to narrow your search.';
+    results.append(note);
+  }
 }
 
 function applyWaitingOrderToReceiving(item,source='selection'){
@@ -49,6 +137,10 @@ function applyWaitingOrderToReceiving(item,source='selection'){
   Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value;});
   const select=document.getElementById('receivingWaitingOrderSelect');if(select)select.value=item.id;
   setReceivingCoreVehicleFieldsLocked();
+  const search=document.getElementById('receivingWaitingOrderSearch');
+  if(search)search.value=item.vin||item.stock_no||'';
+  renderReceivingWaitingOrderSelector();
+  renderReceivingWaitingOrderMatches();
   const customer=item.allocated_customer?` Allocated customer: ${item.allocated_customer}.`:'';
   setReceivingVehicleSourceMessage(`Linked to Waiting Order.${customer} Existing PDI record will be continued — vehicle details may be corrected if required.`,'success');
   if(source!=='restore'&&typeof saveReceivingDraftSilent==='function')saveReceivingDraftSilent();
@@ -84,19 +176,14 @@ function enableReceivingManualVehicleMode(){
 function insertReceivingWaitingOrdersPanel(){
   if(document.getElementById('receivingWaitingOrderPanel'))return;const details=document.getElementById('receivingDetails');if(!details)return;
   const panel=document.createElement('section');panel.id='receivingWaitingOrderPanel';panel.className='card';
-  panel.innerHTML=`<h2>Vehicle Source — Waiting Orders</h2><p class="hint">Select the arriving vehicle from PDI Waiting Orders. Existing order data will populate automatically. Vehicle details remain editable so receiving staff can correct missing or inaccurate information.</p><div class="grid"><label>Search Waiting Orders<input id="receivingWaitingOrderSearch" type="search" placeholder="Search VIN, stock number, vehicle or PO..." autocomplete="off"></label><label>Waiting Vehicle<select id="receivingWaitingOrderSelect"><option value="">Loading Waiting Orders...</option></select></label><div style="align-self:end;padding-bottom:4px"><strong id="receivingWaitingOrderCount">Loading...</strong></div></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button type="button" id="receivingManualVehicleButton" class="ghost">Vehicle Not Listed — Manual Receiving</button><button type="button" id="receivingRefreshWaitingOrdersButton" class="ghost">Refresh Waiting Orders</button></div><p id="receivingVehicleSourceMessage" style="margin:12px 0 0;font-weight:700"></p>`;
+  panel.innerHTML=`<h2>Vehicle Source — Waiting Orders</h2><p class="hint">Select the arriving vehicle from PDI Waiting Orders. Existing order data will populate automatically. Vehicle details remain editable so receiving staff can correct missing or inaccurate information.</p><div class="grid"><label>Search Waiting Orders<input id="receivingWaitingOrderSearch" type="search" placeholder="Search VIN, stock number, vehicle or PO..." autocomplete="off"></label><label>Waiting Vehicle<select id="receivingWaitingOrderSelect"><option value="">Loading Waiting Orders...</option></select></label><div style="align-self:end;padding-bottom:4px"><strong id="receivingWaitingOrderCount">Loading...</strong></div></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button type="button" id="receivingManualVehicleButton" class="ghost">Vehicle Not Listed — Manual Receiving</button><button type="button" id="receivingRefreshWaitingOrdersButton" class="ghost">Refresh Waiting Orders</button></div><div id="receivingWaitingOrderResults" style="margin-top:12px;max-height:340px;overflow:auto" aria-live="polite"></div><p id="receivingVehicleSourceMessage" style="margin:12px 0 0;font-weight:700"></p>`;
   details.parentNode.insertBefore(panel,details);
   document.getElementById('receivingWaitingOrderSelect')?.addEventListener('change',e=>selectReceivingWaitingOrder(e.target.value));
-  document.getElementById('receivingWaitingOrderSearch')?.addEventListener('input',e=>{
-    const query=e.target.value.trim().toLowerCase();
-    const select=document.getElementById('receivingWaitingOrderSelect');
-    if(!select)return;
-    const matches=receivingWaitingOrders.filter(x=>[x.vin,x.stock_no,x.make,x.model,x.oem_supplier,x.order_reference,x.allocated_customer].join(' ').toLowerCase().includes(query));
-    select.innerHTML='<option value="">Select a matching Waiting Order...</option>'+matches.slice(0,100).map(x=>'<option value="'+x.id+'">'+receivingWaitingOrderLabel(x).replaceAll('<','&lt;')+'</option>').join('');
-    if(matches.length===1)selectReceivingWaitingOrder(String(matches[0].id));
+  document.getElementById('receivingWaitingOrderSearch')?.addEventListener('input',()=>{
+    renderReceivingWaitingOrderSelector();renderReceivingWaitingOrderMatches();
   });
   document.getElementById('receivingManualVehicleButton')?.addEventListener('click',enableReceivingManualVehicleMode);
-  document.getElementById('receivingRefreshWaitingOrdersButton')?.addEventListener('click',async()=>{await loadReceivingPdiVehicleIndex();setReceivingVehicleSourceMessage('Waiting Orders refreshed.','success');});
+  document.getElementById('receivingRefreshWaitingOrdersButton')?.addEventListener('click',async()=>{const ok=await loadReceivingPdiVehicleIndex();if(ok)setReceivingVehicleSourceMessage('Waiting Orders refreshed.','success');});
   const vin=document.getElementById('receivingVin');vin?.addEventListener('input',()=>{if(normaliseReceivingVin(vin.value).length>=12)handleReceivingVinLookup();});vin?.addEventListener('change',handleReceivingVinLookup);vin?.addEventListener('blur',handleReceivingVinLookup);
   setReceivingCoreVehicleFieldsLocked();
   setReceivingVehicleSourceMessage('Select a vehicle from Waiting Orders, or use Manual Receiving for a genuine unplanned arrival. Vehicle details remain editable.','info');
