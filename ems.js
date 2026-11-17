@@ -531,6 +531,14 @@ async function loadEmsCases() {
     console.log('Loading EMS cases from Supabase...');
 
     try {
+     const {data:{session},error:sessionError}=await supabaseClient.auth.getSession();
+     if(sessionError)throw sessionError;
+     if(!session){
+       const body=document.getElementById('emsDashboardBody');
+       if(body)body.innerHTML='<tr><td colspan="8" class="empty-table">Not signed in. Please sign in to ELT Vehicle Suite, then return to EMS and refresh.</td></tr>';
+       const msg=document.getElementById('signedInUser');if(msg)msg.textContent='Not signed in';
+       return;
+     }
      const { data, error } = await supabaseClient
     .from('ems_cases')
     .select('*');
@@ -547,7 +555,8 @@ async function loadEmsCases() {
 
     } catch (error) {
         console.error('Failed to load EMS cases:', error);
-        emsCases = [];
+        const body=document.getElementById('emsDashboardBody');
+        if(body)body.innerHTML='<tr><td colspan="8" class="empty-table">EMS data could not be loaded. Please check your sign-in and refresh. Details: '+emsEscape(error.message||'Unknown error')+'</td></tr>';
     }
 }
 
