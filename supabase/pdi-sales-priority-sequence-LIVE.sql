@@ -2,7 +2,12 @@
 -- Additive migration; existing vehicles and workflow steps are preserved.
 BEGIN;
 ALTER TABLE public.pdi_cases ADD COLUMN IF NOT EXISTS sales_priority_sequence integer;
-ALTER TABLE public.pdi_cases ADD CONSTRAINT pdi_sales_priority_positive CHECK (sales_priority_sequence IS NULL OR sales_priority_sequence > 0);
+DO $constraint$
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='pdi_sales_priority_positive' AND conrelid='public.pdi_cases'::regclass) THEN
+  ALTER TABLE public.pdi_cases ADD CONSTRAINT pdi_sales_priority_positive CHECK (sales_priority_sequence IS NULL OR sales_priority_sequence > 0);
+ END IF;
+END $constraint$;
 COMMENT ON COLUMN public.pdi_cases.sales_priority_sequence IS 'Sales Admin workshop sequence for sold, received, active vehicles. NULL means unsequenced.';
 CREATE OR REPLACE FUNCTION public.pdi_set_sales_priority(p_case_id bigint, p_position integer)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
