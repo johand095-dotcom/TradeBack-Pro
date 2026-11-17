@@ -691,12 +691,17 @@
         <div class="section-heading"><div>
           <h2>Sold Vehicle Workshop Sequence</h2>
           <p>Sales Admin assigns the order in which the workshop should prioritise sold vehicles. Sequence 1 is first.</p>
-        </div><button id="pdiSequenceRefresh" type="button" class="secondary-button">Refresh Sequence</button></div>
+        </div>
+          <button id="pdiSequenceToggle" type="button" class="secondary-button" aria-expanded="false" aria-controls="pdiSequenceContent">Show Sequence ▼</button>
+        </div>
+        <div id="pdiSequenceContent" hidden>
+        <button id="pdiSequenceRefresh" type="button" class="secondary-button">Refresh Sequence</button>
         <div id="pdiSequenceMessage" role="status" style="margin:8px 0;color:#52687d"></div>
         <div class="table-wrapper"><table style="width:100%">
           <thead><tr><th>Sequence</th><th>Stock No.</th><th>VIN</th><th>Vehicle</th><th>Customer</th><th>Current Step</th><th>Sales Admin Action</th></tr></thead>
           <tbody id="pdiSalesSequenceBody"><tr><td colspan="7">Loading sold vehicles...</td></tr></tbody>
         </table></div>
+        </div>
       </section>
 
       <section
