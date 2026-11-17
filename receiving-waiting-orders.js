@@ -134,7 +134,32 @@ function renderReceivingWaitingOrderMatches(){
 function applyWaitingOrderToReceiving(item,source='selection'){
   if(!item)return;receivingSelectedPdiCaseId=item.id;receivingManualVehicleMode=false;
   const values={receivingSupplier:item.oem_supplier||'',stockNumber:item.stock_no||'',receivingMake:item.make||'',receivingModel:item.model||'',receivingVin:item.vin||'',deliveryReference:item.order_reference||''};
-  Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value;});
+  // Make and model are linked selects. Setting .value on a select before its
+  // options exist leaves it blank, even though the source order has a model.
+  // Use the shared catalogue helper to populate both selectors atomically.
+  const setMakeModel=window.eltSetVehicleMakeModel?.receivingMake;
+  if(typeof setMakeModel==='function'){
+    setMakeModel(values.receivingMake,values.receivingModel);
+  }else{
+    const make=document.getElementById('receivingMake');
+    const model=document.getElementById('receivingModel');
+    if(make){
+      if(values.receivingMake&&!Array.from(make.options).some(o=>o.value===values.receivingMake))
+        make.add(new Option(values.receivingMake,values.receivingMake));
+      make.value=values.receivingMake;
+      make.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+    if(model){
+      if(values.receivingModel&&!Array.from(model.options).some(o=>o.value===values.receivingModel))
+        model.add(new Option(values.receivingModel,values.receivingModel));
+      model.value=values.receivingModel;
+      model.disabled=false;
+    }
+  }
+  Object.entries(values).forEach(([id,value])=>{
+    if(id==='receivingMake'||id==='receivingModel')return;
+    const el=document.getElementById(id);if(el)el.value=value;
+  });
   const select=document.getElementById('receivingWaitingOrderSelect');if(select)select.value=item.id;
   setReceivingCoreVehicleFieldsLocked();
   const search=document.getElementById('receivingWaitingOrderSearch');
