@@ -84,21 +84,51 @@ const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase
   }
   async function pollUnread(){
     if(!userId())return;
-    const {data,error}=await client().from('pdi_message_recipients').select('message_id,pdi_messages(pdi_case_id,body,created_at)').eq('recipient_id',userId()).is('read_at',null).order('message_id',{ascending:false}).limit(100);
+    const {data,error}=await client().from('pdi_message_recipients')
+      .select('message_id,pdi_messages(pdi_case_id,body,created_at,sender_id)')
+      .eq('recipient_id',userId()).is('read_at',null)
+      .order('message_id',{ascending:false}).limit(500);
     if(error){status('Could not load unread messages: '+error.message,true);return;}
-    const count=data?.length||0, badge=el('eltOpsUnread');
+    const count=data?.length||0;
+    const badge=el('eltOpsUnread'),globalBadge=el('eltInboxCount');
     if(badge)badge.textContent=count?' ('+count+' unread)':'';
-    const inbox=el('eltOpsInbox');if(!inbox)return;inbox.replaceChildren();
-    for(const entry of data||[]){
-      const row=document.createElement('button');row.type='button';row.style.cssText='display:block;width:100%;text-align:left;margin:5px 0;padding:9px;background:#eef4fa;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer';
-      const item=entry.pdi_messages;row.textContent='VIN '+(caseList().find(c=>String(c.id)===String(item?.pdi_case_id))?.vin||'Unknown')+' · '+(item?.body||'').slice(0,120);
-      row.addEventListener('click',async()=>{
-       
-const {error:e}=await client().rpc('elt_mark_pdi_message_read',{p_message_id:entry.message_id});
-
-        if(e)return status('Could not mark message read: '+e.message,true);
-        selectCase(item?.pdi_case_id);await pollUnread();
-      });inbox.append(row);
+    if(globalBadge)globalBadge.textContent=count?String(count)+(count===500?'+':''):'0';
+    const globalList=el('eltGlobalInboxList'),legacyList=el('eltOpsInbox');
+    for(const container of [globalList,legacyList]){
+      if(!container)continue;
+      container.replaceChildren();
+      if(!count){
+        const empty=document.createElement('p');empty.textContent='You are all caught up — no unread messages.';
+        empty.style.color='#64748b';container.append(empty);continue;
+      }
+      for(const entry of data||[]){
+        const item=entry.pdi_messages;
+        if(!item)continue;
+        const row=document.createElement('button');row.type='button';
+        row.style.cssText='display:block;width:100%;text-align:left;margin:7px 0;padding:13px;background:#f1f6fc;border:1px solid #cbd9e8;border-radius:9px;cursor:pointer;color:#123451';
+        const c=caseList().find(c=>String(c.id)===String(item.pdi_case_id));
+        const sender=(window.eltOpsUsers||[]).find(u=>u.user_id===item.sender_id);
+        const title=document.createElement('strong');
+        title.textContent=(c?.vin||'Vehicle #'+item.pdi_case_id)+' · '+(sender?.full_name||'Team member');
+        const time=document.createElement('small');
+        time.style.cssText='display:block;margin:4px 0;color:#64748b';
+        time.textContent=item.created_at?new Date(item.created_at).toLocaleString():'';
+        const body=document.createElement('span');
+        body.style.cssText='display:block;white-space:pre-wrap;overflow-wrap:anywhere';
+        body.textContent=(item.body||'').slice(0,250);
+        row.append(title,time,body);
+        row.addEventListener('click',async()=>{
+          row.disabled=true;
+          try{
+            const {error:e}=await client().rpc('elt_mark_pdi_message_read',{p_message_id:entry.message_id});
+            if(e)throw e;
+            selectCase(item.pdi_case_id);
+            el('eltOpsPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+            await pollUnread();
+          }catch(e){status('Could not open message: '+e.message,true);row.disabled=false;}
+        });
+        container.append(row);
+      }
     }
   }
   function render(){
@@ -148,6 +178,28 @@ const {error:e}=await client().rpc('elt_mark_pdi_message_read',{p_message_id:ent
     else if(archive?.parentElement)archive.parentElement.insertBefore(panel,archive);
     else document.body.append(panel);
     render();
+    const topbar=document.querySelector('.topbar-actions');
+    if(topbar&&!el('eltInboxButton')){
+      const btn=document.createElement('button');
+      btn.id='eltInboxButton';btn.type='button';btn.className='secondary-button';
+      btn.innerHTML='My Inbox <span id="eltInboxCount" style="display:inline-block;background:#b42318;color:#fff;border-radius:999px;min-width:22px;padding:2px 7px;margin-left:6px">0</span>';
+      topbar.insertBefore(btn,topbar.firstChild);
+      const inbox=document.createElement('section');
+      inbox.id='eltGlobalInbox';
+      inbox.hidden=true;
+      inbox.style.cssText='background:#fff;border:1px solid #cbd9e8;border-radius:12px;padding:22px;margin:18px 0;max-height:500px;overflow:auto';
+      inbox.innerHTML='<h2 style="margin-top:0;color:#123451">My PDI Inbox</h2><p>Unread messages addressed to your account. Select a message to open its vehicle communication trail and mark it as read.</p><div id="eltGlobalInboxList" aria-live="polite">Loading unread messages...</div>';
+      const main=document.querySelector('main.main-content');
+      const top=main?.querySelector('.topbar');
+      if(top)top.insertAdjacentElement('afterend',inbox);
+      btn.addEventListener('click',()=>{
+        inbox.hidden=!inbox.hidden;
+        btn.setAttribute('aria-expanded',String(!inbox.hidden));
+        if(!inbox.hidden){void loadUsers().then(pollUnread);inbox.scrollIntoView({behavior:'smooth',block:'start'});}
+      });
+      btn.setAttribute('aria-controls','eltGlobalInbox');btn.setAttribute('aria-expanded','false');
+    }
+    void pollUnread();
     // Explicit VIN selector remains available independently of workflow navigation.
     if(!refreshHandle)refreshHandle=setInterval(()=>{if(userId())void pollUnread()},20000);
   }
