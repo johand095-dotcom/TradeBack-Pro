@@ -91,7 +91,7 @@ const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase
       .eq('recipient_id',userId()).is('read_at',null)
       .order('notification_id',{ascending:false}).limit(500);
     // The SQL migration is opt-in. Existing PDI inbox must keep working until deployed.
-    if(error)return;
+    if(error){console.error('Stock inbox query failed:',error);status('Could not load stock alerts: '+error.message,true);return;}
     const alerts=(data||[]).filter(x=>x.stock_payment_notifications);
     if(alerts.length){
       const empty=Array.from(globalList.querySelectorAll('p')).find(p=>p.textContent.includes('all caught up'));
