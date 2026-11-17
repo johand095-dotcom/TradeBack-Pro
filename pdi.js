@@ -852,6 +852,9 @@ allocated_salesperson_id,
 allocated_salesperson_name,
 current_location,
 sales_priority_sequence,
+tradeback_option,
+floorplan_provider,
+vehicle_range,
 ordered_at,
 received_at,
         workflow_status,
@@ -1322,6 +1325,13 @@ const allocatedCustomer =
 
     return;
 }
+            const tradebackOption = document.getElementById('preArrivalTradeback')?.value;
+            const floorplanProvider = document.getElementById('preArrivalFloorplan')?.value;
+            const vehicleRange = document.getElementById('preArrivalRange')?.value;
+            if (!tradebackOption || !floorplanProvider || !vehicleRange) {
+                alert('Please select Tradeback, Floorplan and Vehicle Range before saving this OEM order.');
+                return;
+            }
             saveButton.disabled = true;
             saveButton.textContent =
                 'Saving Order...';
@@ -1399,6 +1409,9 @@ allocated_customer:
 allocated_salesperson_name:
     allocatedSalespersonName || null,
 
+tradeback_option: tradebackOption,
+floorplan_provider: floorplanProvider,
+vehicle_range: vehicleRange,
 ordered_at:
     now 
                         })
@@ -1860,6 +1873,7 @@ ${
                 ? `<span class="pdi-badge pdi-badge-stock">${classification}</span>`
                 : '-'
 }
+<div style="margin-top:5px;font-size:12px"><strong>Floorplan:</strong> ${item.floorplan_provider || 'Not set'} / ${item.vehicle_range || 'Not set'}<br><strong>Tradeback:</strong> ${item.tradeback_option || 'Not set'}</div>
 </td>
 
                             <td>

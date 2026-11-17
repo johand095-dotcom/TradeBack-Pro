@@ -82,6 +82,45 @@ const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase
       el('eltOpsBody').value='';await loadVehicle();await pollUnread();if(!el('eltOpsStatus')?.textContent)status('Message sent and linked to this vehicle.');
     }catch(e){status('Message not sent: '+e.message,true)}finally{busy=false}
   }
+  async function pollStockAlerts(pdiCount){
+    const globalList=el('eltGlobalInboxList');
+    const badge=el('eltInboxCount');
+    if(!globalList||!userId())return;
+    const {data,error}=await client().from('stock_payment_notification_recipients')
+      .select('notification_id,stock_payment_notifications(id,vin,stock_no,floorplan_provider,due_date,days_remaining,alert_stage,created_at)')
+      .eq('recipient_id',userId()).is('read_at',null)
+      .order('notification_id',{ascending:false}).limit(500);
+    // The SQL migration is opt-in. Existing PDI inbox must keep working until deployed.
+    if(error){console.error('Stock inbox query failed:',error);status('Could not load stock alerts: '+error.message,true);return;}
+    const alerts=(data||[]).filter(x=>x.stock_payment_notifications);
+    if(alerts.length){
+      const empty=Array.from(globalList.querySelectorAll('p')).find(p=>p.textContent.includes('all caught up'));
+      if(empty)empty.remove();
+    }
+    if(badge)badge.textContent=(pdiCount+alerts.length)+(alerts.length===500?'+' : '');
+    for(const entry of alerts){
+      const a=entry.stock_payment_notifications;
+      const row=document.createElement('button');row.type='button';
+      row.style.cssText='display:block;width:100%;text-align:left;margin:7px 0;padding:13px;background:#fff1df;border:1px solid #e5b66b;border-radius:9px;cursor:pointer;color:#123451';
+      const title=document.createElement('strong');
+      title.textContent='STOCK MANAGEMENT — FLOORPLAN ALERT · '+(a.vin||a.stock_no||'Vehicle');
+      const meta=document.createElement('small');meta.style.cssText='display:block;margin:4px 0;color:#795300';
+      meta.textContent=(a.alert_stage==='overdue'?'OVERDUE':a.alert_stage==='critical7'?'CRITICAL':'15-DAY WARNING')+
+        ' · '+(a.floorplan_provider||'Floorplan')+' · Due '+(a.due_date||'—');
+      const detail=document.createElement('span');detail.style.cssText='display:block;white-space:pre-wrap';
+      detail.textContent=(a.days_remaining<0?Math.abs(a.days_remaining)+' days overdue':a.days_remaining+' days remaining')+
+        ' · Stock '+(a.stock_no||'—');
+      row.append(title,meta,detail);
+      row.addEventListener('click',async()=>{
+        row.disabled=true;
+        const {error:e}=await client().rpc('stock_mark_notification_read',{p_notification_id:entry.notification_id});
+        if(e){row.disabled=false;status('Could not mark stock alert as read: '+e.message,true);return;}
+        window.open('stock.html','_blank','noopener');
+        await pollUnread();
+      });
+      globalList.append(row);
+    }
+  }
   async function pollUnread(){
     if(!userId())return;
     const {data,error}=await client().from('pdi_message_recipients')
@@ -130,6 +169,7 @@ const {error}=await client().rpc('elt_update_pdi_location',{p_case_id:activeCase
         container.append(row);
       }
     }
+    await pollStockAlerts(count);
   }
   function render(){
     const root=el('eltOpsPanel');if(!root)return;
