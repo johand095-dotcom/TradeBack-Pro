@@ -1430,7 +1430,7 @@ document.getElementById('downloadEmsReportButton')?.addEventListener('click',asy
  const button=document.getElementById('downloadEmsReportButton');
  button.disabled=true;
  try{
-  if(!window.XLSX)throw Error('Excel export library is unavailable.');
+  if(!window.ExcelJS)throw Error('Excel report styling library did not load. Check your internet connection and refresh.');
   const {data:history,error}=await supabaseClient.from('ems_step_events')
     .select('ems_case_id,step_key,completed_at');
   if(error)throw error;
@@ -1456,25 +1456,93 @@ document.getElementById('downloadEmsReportButton')?.addEventListener('click',asy
       emsClientStatus(c,done),age,complete.length,outstanding.length,
       outstanding[0]?.[2]||'None',last];
   });
-  // Preserve leading zeros, VINs and references as text. No CSV formula execution.
   const safe=v=>typeof v==='string'&&/^[=+@]/.test(v.trim())?"'"+v:v??'';
   const date=new Date().toISOString().slice(0,10);
-  const aoa=[
-    ['ELT GROUP (PTY) LTD  |  EMS VEHICLE STATUS REPORT'],
-    ['Report date: '+date,'Vehicles: '+rows.length,'Prepared for client distribution'],
-    ['Status definitions: In Assessment · Awaiting Auth · Auth Received / In Progress · Complete'],
-    [],
-    headers,
-    ...rows.map(row=>row.map(safe))
-  ];
-  const sheet=XLSX.utils.aoa_to_sheet(aoa);
-  sheet['!merges']=[{s:{r:0,c:0},e:{r:0,c:14}},{s:{r:2,c:0},e:{r:2,c:14}}];
-  sheet['!cols']=[20,17,25,17,28,16,55,26,10,29,13,18,20,39,23].map(wch=>({wch}));
-  sheet['!autofilter']={ref:'A5:O'+Math.max(5,aoa.length)};
-  sheet['!rows']=[{hpt:34},{hpt:24},{hpt:22},{hpt:10},{hpt:28}];
-  const book=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(book,sheet,'EMS Client Report');
-  XLSX.writeFile(book,'ELT_EMS_Client_Report_'+date+'.xlsx');
+  const wb=new ExcelJS.Workbook();
+  wb.creator='ELT Group (PTY) Ltd';
+  wb.subject='EMS Vehicle Status Report';
+  wb.title='ELT EMS Client Status Report';
+  wb.created=new Date();
+  const ws=wb.addWorksheet('EMS Client Report',{views:[{state:'frozen',ySplit:9,xSplit:0,activeCell:'A10'}],properties:{defaultRowHeight:20}});
+  const navy='123451',blue='164A72',pale='EDF3F8',white='FFFFFF',slate='52687D',line='DDE6EF';
+  const fill=color=>({type:'pattern',pattern:'solid',fgColor:{argb:'FF'+color}});
+  const widths=[21,17,26,18,29,17,55,28,10,30,13,19,21,40,24];
+  ws.columns=widths.map(width=>({width}));
+  ws.mergeCells('A1:O2');
+  const title=ws.getCell('A1');
+  title.value='ELT GROUP (PTY) LTD   |   EMS VEHICLE STATUS REPORT';
+  title.fill=fill(navy);
+  title.font={name:'Aptos Display',size:19,bold:true,color:{argb:'FF'+white}};
+  title.alignment={vertical:'middle',horizontal:'left',indent:1};
+  ws.getRow(1).height=28;ws.getRow(2).height=25;
+  ws.mergeCells('A3:E3');ws.getCell('A3').value='CLIENT OPERATIONS  /  VEHICLE PROGRESS';
+  ws.mergeCells('F3:J3');ws.getCell('F3').value='REPORT DATE  '+date;
+  ws.mergeCells('K3:O3');ws.getCell('K3').value='VEHICLES REPORTED  '+rows.length;
+  for(const address of ['A3','F3','K3']){
+    const c=ws.getCell(address);c.fill=fill(blue);c.font={name:'Aptos',size:11,bold:true,color:{argb:'FF'+white}};
+    c.alignment={vertical:'middle',indent:1};
+  }
+  ws.getRow(3).height=30;
+  ws.mergeCells('A5:O5');
+  ws.getCell('A5').value='STATUS OVERVIEW';
+  ws.getCell('A5').font={name:'Aptos',size:12,bold:true,color:{argb:'FF'+navy}};
+  ws.getRow(5).height=25;
+  const statuses=['In Assessment','Awaiting Auth','Auth Received / In Progress','Complete'];
+  const counts=statuses.map(status=>rows.filter(row=>row[9]===status).length);
+  const ranges=[['A6:C7',0,'E7F0F9','245D8C'],['D6:F7',1,'FFF1E1','9C5700'],['G6:K7',2,'E6F3EB','1D6C42'],['L6:O7',3,'E9ECF5','384C82']];
+  for(const [range,i,bg,fg] of ranges){
+    ws.mergeCells(range);
+    const cell=ws.getCell(range.split(':')[0]);
+    cell.value=statuses[i]+'   |   '+counts[i];
+    cell.fill=fill(bg);
+    cell.font={name:'Aptos',size:12,bold:true,color:{argb:'FF'+fg}};
+    cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+  }
+  ws.getRow(6).height=20;ws.getRow(7).height=23;
+  ws.getRow(8).height=12;
+  ws.getRow(9).values=headers;
+  ws.getRow(9).height=34;
+  ws.getRow(9).eachCell({includeEmpty:true},cell=>{
+    cell.fill=fill(navy);
+    cell.font={name:'Aptos',size:10,bold:true,color:{argb:'FF'+white}};
+    cell.alignment={vertical:'middle',wrapText:true,indent:1};
+    cell.border={bottom:{style:'medium',color:{argb:'FF'+blue}}};
+  });
+  for(let i=0;i<rows.length;i++){
+    const row=ws.addRow(rows[i].map(safe));
+    row.height=30;
+    row.eachCell({includeEmpty:true},(cell,col)=>{
+      cell.font={name:'Aptos',size:10,color:{argb:'FF'+navy}};
+      cell.fill=fill(i%2===0?'FFFFFF':'F4F7FA');
+      cell.alignment={vertical:'middle',wrapText:col===7||col===14,indent:1};
+      cell.border={bottom:{style:'hair',color:{argb:'FF'+line}}};
+    });
+    for(const col of [1,2,3,4,5,6,7,8,10,14,15])row.getCell(col).numFmt='@';
+    for(const col of [9,11,12,13])row.getCell(col).alignment={horizontal:'center',vertical:'middle'};
+    const status=String(rows[i][9]||'');
+    const colors={
+      'In Assessment':['E7F0F9','245D8C'],
+      'Awaiting Auth':['FFF1E1','9C5700'],
+      'Auth Received / In Progress':['E6F3EB','1D6C42'],
+      'Complete':['E9ECF5','384C82']
+    };
+    const [bg,fg]=colors[status]||['EDF3F8',navy];
+    const statusCell=row.getCell(10);
+    statusCell.fill=fill(bg);statusCell.font={name:'Aptos',size:10,bold:true,color:{argb:'FF'+fg}};
+    statusCell.alignment={vertical:'middle',indent:1,wrapText:true};
+  }
+  ws.autoFilter={from:'A9',to:'O'+Math.max(9,9+rows.length)};
+  ws.pageSetup={paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,
+    margins:{left:0.25,right:0.25,top:0.5,bottom:0.5,header:0.2,footer:0.2}};
+  ws.headerFooter.oddFooter='ELT GROUP (PTY) LTD  •  EMS VEHICLE STATUS REPORT    |    Page &P of &N';
+  ws.printTitlesRow='1:9';
+  ws.printArea='A1:O'+Math.max(9,9+rows.length);
+  const buffer=await wb.xlsx.writeBuffer();
+  const url=URL.createObjectURL(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  const link=document.createElement('a');
+  link.href=url;link.download='ELT_EMS_Client_Report_'+date+'.xlsx';
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
  }catch(error){alert('EMS report export failed: '+error.message);}
  finally{button.disabled=false;}
 });
