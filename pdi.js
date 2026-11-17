@@ -1322,6 +1322,13 @@ const allocatedCustomer =
 
     return;
 }
+            const tradebackOption = document.getElementById('preArrivalTradeback')?.value;
+            const floorplanProvider = document.getElementById('preArrivalFloorplan')?.value;
+            const vehicleRange = document.getElementById('preArrivalRange')?.value;
+            if (!tradebackOption || !floorplanProvider || !vehicleRange) {
+                alert('Please select Tradeback, Floorplan and Vehicle Range before saving this OEM order.');
+                return;
+            }
             saveButton.disabled = true;
             saveButton.textContent =
                 'Saving Order...';
@@ -1399,6 +1406,9 @@ allocated_customer:
 allocated_salesperson_name:
     allocatedSalespersonName || null,
 
+tradeback_option: tradebackOption,
+floorplan_provider: floorplanProvider,
+vehicle_range: vehicleRange,
 ordered_at:
     now 
                         })
