@@ -586,7 +586,7 @@ async function emsLoadStepProgress(){
 }
 function emsClientStatus(c,keys){
   const phase=Number(c.current_phase||1);
-  if(phase>=4||['completed','released','collected'].includes(String(c.workflow_status||'').toLowerCase()))return 'Complete';
+  if(phase>=4)return 'Complete';
   if(phase<=2)return 'In Assessment';
   const done=keys||emsStepProgress.get(String(c.id))||new Set();
   return done.has('authorised')?'Auth Received / In Progress':'Awaiting Auth';
