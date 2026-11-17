@@ -431,6 +431,7 @@ const model =
 
         const notes =
             document.getElementById('emsBookingNotes')?.value.trim() || '';
+        const preAuthNumber = document.getElementById('emsPreAuthNumber')?.value.trim() || '';
 
        try {
     const { data: sessionData, error: sessionError } =
@@ -476,6 +477,7 @@ const model =
         expected_arrival: expectedArrival || null,
 
         booking_details: workDescription,
+        pre_auth_number: preAuthNumber || null,
         notes: notes || null,
 
         workflow_status: 'In Progress',
@@ -529,6 +531,14 @@ async function loadEmsCases() {
     console.log('Loading EMS cases from Supabase...');
 
     try {
+     const {data:{session},error:sessionError}=await supabaseClient.auth.getSession();
+     if(sessionError)throw sessionError;
+     if(!session){
+       const body=document.getElementById('emsDashboardBody');
+       if(body)body.innerHTML='<tr><td colspan="8" class="empty-table">Not signed in. Please sign in to ELT Vehicle Suite, then return to EMS and refresh.</td></tr>';
+       const msg=document.getElementById('signedInUser');if(msg)msg.textContent='Not signed in';
+       return;
+     }
      const { data, error } = await supabaseClient
     .from('ems_cases')
     .select('*');
@@ -538,13 +548,15 @@ async function loadEmsCases() {
         }
 
         emsCases = data || [];
+        await emsLoadStepProgress();
 
         console.log('EMS CASES LOADED:', emsCases);
         renderEmsDashboard();
 
     } catch (error) {
         console.error('Failed to load EMS cases:', error);
-        emsCases = [];
+        const body=document.getElementById('emsDashboardBody');
+        if(body)body.innerHTML='<tr><td colspan="8" class="empty-table">EMS data could not be loaded. Please check your sign-in and refresh. Details: '+emsEscape(error.message||'Unknown error')+'</td></tr>';
     }
 }
 
@@ -554,6 +566,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadEmsCases();
 });
 
+/* Client-facing EMS status is derived from phase and completed Phase 3 steps.
+   Phase 3 step 6 = authorisation received. Do not infer from imported source labels. */
+let emsStepProgress = new Map();
+async function emsLoadStepProgress(){
+  emsStepProgress=new Map();
+  const ids=emsCases.map(c=>c.id);
+  if(!ids.length)return;
+  for(let offset=0;offset<ids.length;offset+=150){
+    const {data,error}=await supabaseClient.from('ems_step_events')
+      .select('ems_case_id,step_key').in('ems_case_id',ids.slice(offset,offset+150));
+    if(error){console.warn('EMS step progress unavailable:',error.message);return;}
+    for(const row of data||[]){
+      const key=String(row.ems_case_id);
+      if(!emsStepProgress.has(key))emsStepProgress.set(key,new Set());
+      emsStepProgress.get(key).add(row.step_key);
+    }
+  }
+}
+function emsClientStatus(c,keys){
+  const phase=Number(c.current_phase||1);
+  if(phase>=4)return 'Complete';
+  if(phase<=2)return 'In Assessment';
+  const done=keys||emsStepProgress.get(String(c.id))||new Set();
+  return done.has('authorised')?'Auth Received / In Progress':'Awaiting Auth';
+}
 /* ============================================================
    EMS DASHBOARD RENDERING
 ============================================================ */
@@ -608,7 +645,7 @@ function renderEmsDashboard() {
     const visibleCases = activeCases.filter(item =>
         !searchTerm || [
             item.registration_no, item.vin, item.job_card_no,
-            item.ems_no, item.customer_name, item.workflow_status
+            item.ems_no, item.customer_name, item.workflow_status, item.pre_auth_number, item.booking_details
         ].some(value => String(value ?? '').toLowerCase().includes(searchTerm))
     );
 
@@ -652,7 +689,7 @@ function renderEmsDashboard() {
                 <td>${item.job_card_no || '-'}</td>
                 <td>${bookingDate}</td>
                 <td>Phase ${item.current_phase || 1}</td>
-                <td>${item.workflow_status || 'In Progress'}</td>
+                <td>${emsEscape(emsClientStatus(item))}</td>
                 <td>${daysInProgress}</td>
                 <td>
                     <button
@@ -856,8 +893,11 @@ emsSelectedCase = selectedCase;
     document.getElementById('emsWorkflowPhase').textContent =
         `Phase ${selectedCase.current_phase || 1}`;
 
-   document.getElementById('emsWorkflowStatus').textContent =
-    selectedCase.workflow_status || 'In Progress';
+   document.getElementById('emsWorkflowStatus').textContent = emsClientStatus(selectedCase);
+   const authInput=document.getElementById('emsWorkflowAuthNumber');
+   if(authInput)authInput.value=selectedCase.pre_auth_number||'';
+   const authMessage=document.getElementById('emsAuthSaveMessage');
+   if(authMessage)authMessage.textContent='Changes are saved to the vehicle record.';
 
 /* Render current EMS phase */
 renderEmsPhase1(selectedCase);
@@ -1367,37 +1407,142 @@ document.addEventListener('click',async e=>{
  openEmsWorkflow(emsSelectedCase.id);
  }catch(err){alert('Unable to save step: '+err.message);btn.disabled=false;}
 });
+document.getElementById('emsSaveAuthNumber')?.addEventListener('click',async event=>{
+ const button=event.currentTarget;
+ if(!emsSelectedCase)return;
+ const value=document.getElementById('emsWorkflowAuthNumber')?.value.trim()||'';
+ button.disabled=true;
+ try{
+  const {data,error}=await supabaseClient.from('ems_cases')
+    .update({pre_auth_number:value||null,updated_at:new Date().toISOString()})
+    .eq('id',emsSelectedCase.id).select().single();
+  if(error)throw error;
+  emsSelectedCase=data;
+  await loadEmsCases();
+  openEmsWorkflow(data.id);
+  document.getElementById('emsAuthSaveMessage').textContent='Authorisation reference saved successfully.';
+ }catch(error){alert('Unable to save authorisation reference: '+error.message);}
+ finally{button.disabled=false;}
+});
+
+/* Client-ready Excel report, with title, metadata, useful columns and filters. */
 document.getElementById('downloadEmsReportButton')?.addEventListener('click',async()=>{
  const button=document.getElementById('downloadEmsReportButton');
  button.disabled=true;
- try {
+ try{
+  if(!window.ExcelJS)throw Error('Excel report styling library did not load. Check your internet connection and refresh.');
   const {data:history,error}=await supabaseClient.from('ems_step_events')
-    .select('ems_case_id,step_key,completed_at,notes');
+    .select('ems_case_id,step_key,completed_at');
   if(error)throw error;
-  const headers=['EMS No','Registration','VIN','Job Card','Customer','Booking Date',
-    'Phase','Status','Days In Progress','Completed Steps','Outstanding Steps',
-    'Next Outstanding Action','Latest Step Completion'];
-  const rows=emsCases.filter(c=>String(c.workflow_status||'').toLowerCase()!=='archived').map(c=>{
-   const entries=(history||[]).filter(e=>String(e.ems_case_id)===String(c.id));
-   const finished=new Set(entries.map(e=>e.step_key));
-   const complete=EMS_PHASE_STEPS.filter(x=>finished.has(x[1])||emsLegacyStepDone(c,x[1]));
-   const outstanding=EMS_PHASE_STEPS.filter(x=>!finished.has(x[1])&&!emsLegacyStepDone(c,x[1]));
-   const days=c.started_at?Math.max(0,Math.floor((Date.now()-new Date(c.started_at).getTime())/86400000)):'';
-   const last=entries.map(e=>e.completed_at).filter(Boolean).sort().at(-1)||'';
-   return [c.ems_no,c.registration_no,c.vin,c.job_card_no,c.customer_name,c.booking_date,
-    c.current_phase,c.workflow_status,days,complete.length,outstanding.length,
-    outstanding[0]?.[2]||'None',last];
+  const events=new Map();
+  for(const row of history||[]){
+    const id=String(row.ems_case_id);
+    if(!events.has(id))events.set(id,[]);
+    events.get(id).push(row);
+  }
+  const headers=['EMS Reference','Registration','VIN','Job Card','Customer',
+    'Booking Date','Reason for Booking','Pre-Auth / Auth Number','Phase',
+    'Client Status','Days Open','Completed Steps','Outstanding Steps','Next Action','Last Update'];
+  const active=emsCases.filter(c=>!['archived','deleted'].includes(String(c.workflow_status||'').toLowerCase()));
+  const rows=active.map(c=>{
+    const entries=events.get(String(c.id))||[];
+    const done=new Set(entries.map(e=>e.step_key));
+    const complete=EMS_PHASE_STEPS.filter(x=>done.has(x[1])||emsLegacyStepDone(c,x[1]));
+    const outstanding=EMS_PHASE_STEPS.filter(x=>!done.has(x[1])&&!emsLegacyStepDone(c,x[1]));
+    const age=c.started_at?Math.max(0,Math.floor((Date.now()-new Date(c.started_at))/86400000)):'';
+    const last=entries.map(e=>e.completed_at).filter(Boolean).sort().at(-1)||c.updated_at||'';
+    return [c.ems_no,c.registration_no,c.vin,c.job_card_no,c.customer_name,
+      c.booking_date,c.booking_details,c.pre_auth_number,Number(c.current_phase||1),
+      emsClientStatus(c,done),age,complete.length,outstanding.length,
+      outstanding[0]?.[2]||'None',last];
   });
-  const safeCell=value=>{
-    let v=String(value??'');
-    if(/^\s*[=+@-]/.test(v))v="'"+v;
-    return '"'+v.replace(/"/g,'""')+'"';
-   };
-   const csv='sep=;\r\n'+[headers,...rows].map(row=>row.map(safeCell).join(';')).join('\r\n');
-   const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
-   const a=document.createElement('a');a.href=url;
-   a.download='ELT-EMS-Report-'+new Date().toISOString().slice(0,10)+'.csv';
-   a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const safe=v=>typeof v==='string'&&/^[=+@]/.test(v.trim())?"'"+v:v??'';
+  const date=new Date().toISOString().slice(0,10);
+  const wb=new ExcelJS.Workbook();
+  wb.creator='ELT Group (PTY) Ltd';
+  wb.subject='EMS Vehicle Status Report';
+  wb.title='ELT EMS Client Status Report';
+  wb.created=new Date();
+  const ws=wb.addWorksheet('EMS Client Report',{views:[{state:'frozen',ySplit:9,xSplit:0,activeCell:'A10'}],properties:{defaultRowHeight:20}});
+  const navy='123451',blue='164A72',pale='EDF3F8',white='FFFFFF',slate='52687D',line='DDE6EF';
+  const fill=color=>({type:'pattern',pattern:'solid',fgColor:{argb:'FF'+color}});
+  const widths=[21,17,26,18,29,17,55,28,10,30,13,19,21,40,24];
+  ws.columns=widths.map(width=>({width}));
+  ws.mergeCells('A1:O2');
+  const title=ws.getCell('A1');
+  title.value='ELT GROUP (PTY) LTD   |   EMS VEHICLE STATUS REPORT';
+  title.fill=fill(navy);
+  title.font={name:'Aptos Display',size:19,bold:true,color:{argb:'FF'+white}};
+  title.alignment={vertical:'middle',horizontal:'left',indent:1};
+  ws.getRow(1).height=28;ws.getRow(2).height=25;
+  ws.mergeCells('A3:E3');ws.getCell('A3').value='CLIENT OPERATIONS  /  VEHICLE PROGRESS';
+  ws.mergeCells('F3:J3');ws.getCell('F3').value='REPORT DATE  '+date;
+  ws.mergeCells('K3:O3');ws.getCell('K3').value='VEHICLES REPORTED  '+rows.length;
+  for(const address of ['A3','F3','K3']){
+    const c=ws.getCell(address);c.fill=fill(blue);c.font={name:'Aptos',size:11,bold:true,color:{argb:'FF'+white}};
+    c.alignment={vertical:'middle',indent:1};
+  }
+  ws.getRow(3).height=30;
+  ws.mergeCells('A5:O5');
+  ws.getCell('A5').value='STATUS OVERVIEW';
+  ws.getCell('A5').font={name:'Aptos',size:12,bold:true,color:{argb:'FF'+navy}};
+  ws.getRow(5).height=25;
+  const statuses=['In Assessment','Awaiting Auth','Auth Received / In Progress','Complete'];
+  const counts=statuses.map(status=>rows.filter(row=>row[9]===status).length);
+  const ranges=[['A6:C7',0,'E7F0F9','245D8C'],['D6:F7',1,'FFF1E1','9C5700'],['G6:K7',2,'E6F3EB','1D6C42'],['L6:O7',3,'E9ECF5','384C82']];
+  for(const [range,i,bg,fg] of ranges){
+    ws.mergeCells(range);
+    const cell=ws.getCell(range.split(':')[0]);
+    cell.value=statuses[i]+'   |   '+counts[i];
+    cell.fill=fill(bg);
+    cell.font={name:'Aptos',size:12,bold:true,color:{argb:'FF'+fg}};
+    cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+  }
+  ws.getRow(6).height=20;ws.getRow(7).height=23;
+  ws.getRow(8).height=12;
+  ws.getRow(9).values=headers;
+  ws.getRow(9).height=34;
+  ws.getRow(9).eachCell({includeEmpty:true},cell=>{
+    cell.fill=fill(navy);
+    cell.font={name:'Aptos',size:10,bold:true,color:{argb:'FF'+white}};
+    cell.alignment={vertical:'middle',wrapText:true,indent:1};
+    cell.border={bottom:{style:'medium',color:{argb:'FF'+blue}}};
+  });
+  for(let i=0;i<rows.length;i++){
+    const row=ws.addRow(rows[i].map(safe));
+    row.height=30;
+    row.eachCell({includeEmpty:true},(cell,col)=>{
+      cell.font={name:'Aptos',size:10,color:{argb:'FF'+navy}};
+      cell.fill=fill(i%2===0?'FFFFFF':'F4F7FA');
+      cell.alignment={vertical:'middle',wrapText:col===7||col===14,indent:1};
+      cell.border={bottom:{style:'hair',color:{argb:'FF'+line}}};
+    });
+    for(const col of [1,2,3,4,5,6,7,8,10,14,15])row.getCell(col).numFmt='@';
+    for(const col of [9,11,12,13])row.getCell(col).alignment={horizontal:'center',vertical:'middle'};
+    const status=String(rows[i][9]||'');
+    const colors={
+      'In Assessment':['E7F0F9','245D8C'],
+      'Awaiting Auth':['FFF1E1','9C5700'],
+      'Auth Received / In Progress':['E6F3EB','1D6C42'],
+      'Complete':['E9ECF5','384C82']
+    };
+    const [bg,fg]=colors[status]||['EDF3F8',navy];
+    const statusCell=row.getCell(10);
+    statusCell.fill=fill(bg);statusCell.font={name:'Aptos',size:10,bold:true,color:{argb:'FF'+fg}};
+    statusCell.alignment={vertical:'middle',indent:1,wrapText:true};
+  }
+  ws.autoFilter={from:'A9',to:'O'+Math.max(9,9+rows.length)};
+  ws.pageSetup={paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,
+    margins:{left:0.25,right:0.25,top:0.5,bottom:0.5,header:0.2,footer:0.2}};
+  ws.headerFooter.oddFooter='ELT GROUP (PTY) LTD  •  EMS VEHICLE STATUS REPORT    |    Page &P of &N';
+  ws.printTitlesRow='1:9';
+  ws.printArea='A1:O'+Math.max(9,9+rows.length);
+  const buffer=await wb.xlsx.writeBuffer();
+  const url=URL.createObjectURL(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  const link=document.createElement('a');
+  link.href=url;link.download='ELT_EMS_Client_Report_'+date+'.xlsx';
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
  }catch(error){alert('EMS report export failed: '+error.message);}
  finally{button.disabled=false;}
 });

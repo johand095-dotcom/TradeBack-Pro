@@ -13,7 +13,7 @@
 
     <link
         rel="stylesheet"
-        href="ems.css?v=20261112-step-documents"
+        href="ems.css?v=20261117-ems-auth-status-report"
     >
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -359,6 +359,10 @@
                     >
                 </div>
 
+                <div class="ems-form-field">
+                    <label for="emsPreAuthNumber">Pre-Authorisation Number</label>
+                    <input id="emsPreAuthNumber" name="preAuthNumber" type="text" maxlength="100" placeholder="Optional — enter when available">
+                </div>
                 <div class="ems-form-field ems-form-field-full">
                     <label for="emsWorkDescription">
                         EMS Work / Fitment Description *
@@ -650,6 +654,14 @@
             <strong id="emsWorkflowStatus">-</strong>
         </div>
 
+        <div class="ems-auth-edit-panel">
+            <label for="emsWorkflowAuthNumber">Pre-Auth / Authorisation Number</label>
+            <div class="ems-auth-edit-row">
+                <input id="emsWorkflowAuthNumber" type="text" maxlength="100" placeholder="Enter or update authorisation reference">
+                <button id="emsSaveAuthNumber" type="button" class="secondary-button">Save Number</button>
+            </div>
+            <small id="emsAuthSaveMessage">Changes are saved to the vehicle record.</small>
+        </div>
     </div>
 
 <!-- =========================================================
@@ -1037,7 +1049,8 @@
     </div>
 
 
-    <script src="ems.js?v=20261112-step-documents"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+    <script src="ems.js?v=20261117-ems-polished-report"></script>
 
 </body>
 </html>
