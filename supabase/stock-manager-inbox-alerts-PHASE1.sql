@@ -45,8 +45,9 @@ end $$;
 revoke all on function public.stock_mark_notification_read(bigint) from public;
 grant execute on function public.stock_mark_notification_read(bigint) to authenticated;
 
--- Dispatcher is server-only. SECURITY DEFINER uses the migration owner's
--- permission to read the existing stock_floorplan_register() function.
+-- Dispatcher is server-only. Read only the necessary stock fields directly.
+-- Do not call stock_floorplan_register(), which deliberately requires an
+-- authenticated authorised user; scheduled jobs have no auth.uid().
 -- Returns number of notification deliveries inserted.
 create or replace function public.stock_dispatch_payment_alerts(p_dry_run boolean default false)
 returns integer language plpgsql security definer set search_path=public,pg_temp as $$
@@ -62,7 +63,18 @@ declare
  v_recipient uuid;
  v_count integer := 0;
 begin
- for v_record in select to_jsonb(s) as payload from public.stock_floorplan_register() s loop
+ for v_record in
+  select to_jsonb(x) as payload from (
+   select p.id as pdi_case_id, p.vin, p.stock_no, p.floorplan_provider,
+    ((p.received_at at time zone 'Africa/Johannesburg')::date +
+      public.stock_floorplan_days(p.floorplan_provider,p.vehicle_range))::date as due_date,
+    s.settled_at
+   from public.pdi_cases p
+   left join public.stock_floorplan_settlements s on s.pdi_case_id=p.id
+   where p.received_at is not null and p.floorplan_provider is not null
+     and p.vehicle_range is not null
+  ) x
+ loop
   v_payload:=v_record.payload;
   if nullif(v_payload->>'settled_at','') is not null then continue; end if;
   v_case_id:=nullif(v_payload->>'pdi_case_id','')::bigint;
@@ -101,6 +113,7 @@ end $$;
 revoke all on function public.stock_dispatch_payment_alerts(boolean) from public, anon, authenticated;
 -- Execute via SQL editor as postgres or a privileged scheduled pg_cron job.
 -- Dry-run: select public.stock_dispatch_payment_alerts(true);
+-- This returns number of eligible vehicle alert events, not recipient deliveries.
 -- Production run: select public.stock_dispatch_payment_alerts(false);
 
 -- Optional pg_cron scheduler. Run separately after confirming pg_cron exists:
