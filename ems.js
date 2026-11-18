@@ -1586,6 +1586,9 @@ document.addEventListener('click',async event=>{
  try{
   const {error}=await supabaseClient.rpc('archive_ems_case',{p_case_id:c.id});
   if(error)throw error;
+  const {data:verified,error:verifyError}=await supabaseClient.from('ems_cases').select('id,workflow_status').eq('id',c.id).single();
+  if(verifyError)throw new Error('Archive requested, but status could not be verified: '+verifyError.message);
+  if(!['archived','deleted'].includes(String(verified.workflow_status||'').trim().toLowerCase()))throw new Error('Archive did not change workflow_status (current value: '+(verified.workflow_status||'blank')+'). Database archive_ems_case function needs inspection.');
   if(String(emsSelectedCase?.id)===String(c.id))closeEmsWorkflow();
   await loadEmsCases();
   alert('Vehicle archived. Its history has been preserved.');
