@@ -87,9 +87,9 @@ BEGIN
  -- If delivery fails, the entire voucher transaction rolls back.
  PERFORM public.elt_send_pdi_message(
   p_case_id, ARRAY[v_qc],
-  'FINAL WASH VOUCHER · '||v_number||E'\\nVIN: '||v_vin||E'\\nStock: '||coalesce(v_stock,'-')||
-  E'\\nCreated: '||to_char(now() AT TIME ZONE 'Africa/Johannesburg','YYYY-MM-DD HH24:MI')||
-  CASE WHEN nullif(trim(p_notes),'') IS NOT NULL THEN E'\\nNotes: '||left(trim(p_notes),2000) ELSE '' END
+  'FINAL WASH VOUCHER · '||v_number||E'\nVIN: '||v_vin||E'\nStock: '||coalesce(v_stock,'-')||
+  E'\nCreated: '||to_char(now() AT TIME ZONE 'Africa/Johannesburg','YYYY-MM-DD HH24:MI')||
+  CASE WHEN nullif(trim(p_notes),'') IS NOT NULL THEN E'\nNotes: '||left(trim(p_notes),2000) ELSE '' END
  );
  UPDATE public.pdi_final_wash_vouchers v SET message_sent_at=now() WHERE v.id=v_id;
  RETURN QUERY SELECT v_id,v_number;
