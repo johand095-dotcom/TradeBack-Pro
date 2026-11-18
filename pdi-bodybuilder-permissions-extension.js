@@ -61,7 +61,8 @@
             profile?.is_active !== false &&
             (
                 profile?.is_admin === true ||
-                roles.includes('sales admin')
+                roles.includes('sales admin') ||
+                roles.includes('sales controller')
             )
         );
     }
@@ -129,7 +130,7 @@
                 notice.style.color = '#475569';
                 notice.style.fontWeight = '600';
                 notice.textContent =
-                    'Bodybuilder fitment is managed by Sales Admin. This phase is read-only for your role.';
+                    'Bodybuilder fitment is managed by Sales Admin or Sales Controller. This phase is read-only for your role.';
 
                 const content =
                     document.getElementById('bodybuilderWorkflowContent');
