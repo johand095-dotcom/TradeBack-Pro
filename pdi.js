@@ -3140,7 +3140,7 @@ deleteVehicleButton.classList.toggle(
 }
 
 if (
-    Number(selectedCase.current_phase) >= 4 &&
+    Number(selectedCase.current_step) >= 22 &&
     !selectedCase.pdi_started_at
 ) {
 
@@ -3166,7 +3166,7 @@ if (
     if (pdiStartError) {
 
         console.error(
-            'Could not start PDI clock:',
+            'Could not start PDI clock at Step 22:',
             pdiStartError
         );
 
