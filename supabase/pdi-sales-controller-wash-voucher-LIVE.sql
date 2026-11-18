@@ -18,8 +18,24 @@ END $$;
 -- Reassign existing and future workflow steps.
 UPDATE public.pdi_step_templates SET responsible_role='Sales Controller'
 WHERE step_no IN (20,36,39,41);
-UPDATE public.pdi_case_steps SET responsible_role='Sales Controller',updated_at=now()
-WHERE step_no IN (20,36,39,41) AND step_status='Pending';
+UPDATE public.pdi_case_steps SET responsible_role='Sales Controller'
+WHERE step_no IN (20,36,39,41) AND coalesce(step_status,'Pending') <> 'Completed';
+
+-- Release workshop priority automatically when the vehicle reaches Step 22.
+CREATE OR REPLACE FUNCTION public.pdi_release_sales_priority_at_step22()
+RETURNS trigger LANGUAGE plpgsql SET search_path=public,pg_temp AS $
+BEGIN
+ IF NEW.current_step IS NOT NULL AND NEW.current_step >= 22 THEN
+  NEW.sales_priority_sequence := NULL;
+ END IF;
+ RETURN NEW;
+END $;
+DROP TRIGGER IF EXISTS pdi_release_sales_priority_step22 ON public.pdi_cases;
+CREATE TRIGGER pdi_release_sales_priority_step22
+BEFORE INSERT OR UPDATE OF current_step,sales_priority_sequence ON public.pdi_cases
+FOR EACH ROW EXECUTE FUNCTION public.pdi_release_sales_priority_at_step22();
+UPDATE public.pdi_cases SET sales_priority_sequence=NULL
+WHERE current_step>=22 AND sales_priority_sequence IS NOT NULL;
 
 -- A voucher is an immutable, vehicle-linked record; messages are dispatched
 -- through the existing PDI inbox RPC after voucher creation.
@@ -48,7 +64,7 @@ CREATE OR REPLACE FUNCTION public.pdi_create_final_wash_voucher(
  p_case_id bigint,p_notes text DEFAULT NULL
 ) RETURNS TABLE(voucher_id bigint,voucher_number text)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
-DECLARE v_actor uuid:=auth.uid();v_qc uuid;v_id bigint;v_roles text[];
+DECLARE v_actor uuid:=auth.uid();v_qc uuid;v_id bigint;v_roles text[];v_vin text;v_stock text;v_number text;
 BEGIN
  IF v_actor IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
  SELECT roles INTO v_roles FROM public.user_profiles
@@ -58,16 +74,25 @@ BEGIN
   OR EXISTS(SELECT 1 FROM unnest(coalesce(v_roles,ARRAY[]::text[])) role
      WHERE lower(trim(role))='sales controller')
  ) THEN RAISE EXCEPTION 'Sales Controller access required'; END IF;
- IF NOT EXISTS(SELECT 1 FROM public.pdi_cases WHERE id=p_case_id AND vin IS NOT NULL)
- THEN RAISE EXCEPTION 'Vehicle not found'; END IF;
+ SELECT vin,stock_no INTO v_vin,v_stock FROM public.pdi_cases WHERE id=p_case_id AND vin IS NOT NULL;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Vehicle not found'; END IF;
  SELECT id INTO v_qc FROM auth.users WHERE lower(email)='gerhardg@eltgroup.co.za';
  IF v_qc IS NULL THEN RAISE EXCEPTION 'QC account gerhardg@eltgroup.co.za not found'; END IF;
  INSERT INTO public.pdi_final_wash_vouchers(pdi_case_id,created_by,qc_user_id,notes)
  VALUES(p_case_id,v_actor,v_qc,left(nullif(trim(p_notes),''),2000))
  RETURNING id INTO v_id;
- UPDATE public.pdi_final_wash_vouchers v SET voucher_number='FWV-'||lpad(v_id::text,6,'0')
- WHERE v.id=v_id;
- RETURN QUERY SELECT v_id,('FWV-'||lpad(v_id::text,6,'0'))::text;
+ v_number:='FWV-'||lpad(v_id::text,6,'0');
+ UPDATE public.pdi_final_wash_vouchers v SET voucher_number=v_number WHERE v.id=v_id;
+ -- Existing inbox RPC writes both the VIN-linked message and QC recipient delivery.
+ -- If delivery fails, the entire voucher transaction rolls back.
+ PERFORM public.elt_send_pdi_message(
+  p_case_id, ARRAY[v_qc],
+  'FINAL WASH VOUCHER · '||v_number||E'\\nVIN: '||v_vin||E'\\nStock: '||coalesce(v_stock,'-')||
+  E'\\nCreated: '||to_char(now() AT TIME ZONE 'Africa/Johannesburg','YYYY-MM-DD HH24:MI')||
+  CASE WHEN nullif(trim(p_notes),'') IS NOT NULL THEN E'\\nNotes: '||left(trim(p_notes),2000) ELSE '' END
+ );
+ UPDATE public.pdi_final_wash_vouchers v SET message_sent_at=now() WHERE v.id=v_id;
+ RETURN QUERY SELECT v_id,v_number;
 END $$;
 REVOKE ALL ON FUNCTION public.pdi_create_final_wash_voucher(bigint,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.pdi_create_final_wash_voucher(bigint,text) TO authenticated;
