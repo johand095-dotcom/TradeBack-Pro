@@ -10,7 +10,7 @@ const canManage=()=>{
 const activeSold=()=>{
  const cases=typeof pdiCases!=='undefined'?pdiCases:[];
  return cases.filter(c=>c.stock_classification==='Sold'&&c.received_at&&
- !['Completed','Archived','Deleted'].includes(c.workflow_status));
+ !['Completed','Archived','Deleted'].includes(c.workflow_status)&&Number(c.current_step||0)<22);
 };
 function textCell(tr,value){
  const td=document.createElement('td');td.textContent=value==null?'—':String(value);tr.append(td);return td;
