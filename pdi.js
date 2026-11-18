@@ -4040,6 +4040,8 @@ const returnButton =
     }
 
     // Reset display whenever another vehicle is opened
+    if (checkoutButton) checkoutButton.onclick = null;
+    if (returnButton) returnButton.onclick = null;
     requiredSelect.value = '';
     detailsFields.classList.add('hidden');
 
@@ -4069,10 +4071,12 @@ const returnButton =
 
 if (loadError) {
 
-    console.error(
-        'Could not load bodybuilder details:',
-        loadError
-    );
+    console.error('Could not load bodybuilder details:', loadError);
+    status.textContent = 'Could not load Bodybuilder data: ' + loadError.message;
+    saveButton.disabled = true;
+    if (checkoutButton) checkoutButton.disabled = true;
+    if (returnButton) returnButton.disabled = true;
+    return;
 }
 
 if (existingVisit) {
@@ -4414,9 +4418,8 @@ if (
                 ?.classList
                 .remove('hidden');
 
-            alert(
-                'Vehicle dispatched to bodybuilder successfully.'
-            );
+            await initialiseBodybuilderPhase(selectedCase);
+            alert('Vehicle dispatched to bodybuilder successfully. Return controls are now ready.');
 
         } catch (error) {
 
@@ -4544,7 +4547,7 @@ if (
                         );
 
                 const storagePath =
-                    `${selectedCase.receiving_no}/return/${safeType}.${extension}`;
+                    `${selectedCase.receiving_no || 'case-'+selectedCase.id}/return/${safeType}.${extension}`;
 
                 const {
                     error: uploadError
@@ -4663,9 +4666,8 @@ if (
                 ?.classList
                 .add('hidden');
 
-            alert(
-                'Vehicle return from bodybuilder confirmed successfully.'
-            );
+            await initialiseBodybuilderPhase(selectedCase);
+            alert('Vehicle return from bodybuilder confirmed successfully.');
 
         } catch (error) {
 
@@ -4674,9 +4676,7 @@ if (
                 error
             );
 
-            alert(
-                'The vehicle return could not be confirmed. Please check the browser console.'
-            );
+            alert('Vehicle return could not be confirmed: ' + (error?.message || 'Unknown error'));
 
         } finally {
 
@@ -4753,10 +4753,11 @@ saveButton.onclick = async function () {
         }
 
         const bodybuilderRequired = decision === 'yes';
-        const bodybuilderStatus =
-            bodybuilderRequired
-                ? 'Ready for Dispatch'
-                : 'Not Applicable';
+        if (existingVisit?.checkout_at || existingVisit?.returned_at || ['At Bodybuilder','Completed'].includes(existingVisit?.status)) {
+            alert('This vehicle has already been dispatched or returned. Bodybuilder details cannot be reset through this form.');
+            return;
+        }
+        const bodybuilderStatus = bodybuilderRequired ? 'Ready for Dispatch' : 'Not Applicable';
 
         saveButton.disabled = true;
         saveButton.textContent = 'Saving...';
