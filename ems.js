@@ -1581,7 +1581,12 @@ document.addEventListener('click',async event=>{
  if(!c)return;
  const name=c.registration_no||c.vin||c.ems_no;
  if(!confirm('Remove '+name+' from the active EMS dashboard?\n\nIts history and documents will be preserved.'))return;
- if(prompt('Type DELETE to confirm removing '+name+':')!=='DELETE')return;
+ const confirmation=prompt('FINAL CONFIRMATION: Type the word DELETE (not a comment or reason) to archive '+name+'.\\n\\nThe vehicle and its documents will be preserved.');
+ if(confirmation===null)return;
+ if(confirmation.trim().toUpperCase()!=='DELETE'){
+  alert('Vehicle was NOT deleted. Please type DELETE in the confirmation field, not a comment.');
+  return;
+ }
  button.disabled=true;
  try{
   const {error}=await supabaseClient.rpc('archive_ems_case',{p_case_id:c.id});
