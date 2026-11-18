@@ -33,7 +33,7 @@ async function createVoucher(){
   if(error)throw error;
   const voucher=Array.isArray(data)?data[0]:data;
   if(!voucher?.voucher_number)throw Error('Voucher was not returned by the database.');
-  message(voucher.voucher_number+' created and QC notification queued.');
+  message(voucher.voucher_number+' created and delivered to Gerhard (QC).');
   id('eltWashNotes').value='';
   await refreshHistory();
  }catch(e){message('Voucher not created: '+e.message,true);}
