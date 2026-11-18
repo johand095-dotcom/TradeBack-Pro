@@ -860,8 +860,8 @@ emsSelectedCase = selectedCase;
  const archiveWorkflowButton=document.getElementById('emsArchiveWorkflowButton');
  if(archiveWorkflowButton){
   archiveWorkflowButton.classList.remove('hidden');
-  archiveWorkflowButton.disabled=!Boolean(emsUserProfile?.is_admin);
-  archiveWorkflowButton.title=emsUserProfile?.is_admin?'Archive this EMS vehicle':'Administrator permission required';
+  archiveWorkflowButton.disabled=false;
+  archiveWorkflowButton.title='Archive vehicle (administrator permission required)';
   archiveWorkflowButton.dataset.emsArchive=selectedCase.id;
  }
 
@@ -886,6 +886,8 @@ emsSelectedCase = selectedCase;
 
     document.getElementById('emsWorkflowJobCard').textContent =
         selectedCase.job_card_no || '-';
+    const editJobButton=document.getElementById('emsEditJobNumberButton');
+    if(editJobButton) editJobButton.classList.remove('hidden');
 
     document.getElementById('emsWorkflowCustomer').textContent =
         selectedCase.customer_name || '-';
@@ -1573,7 +1575,8 @@ document.addEventListener('click',async e=>{
 document.addEventListener('click',async event=>{
  const button=event.target.closest('[data-ems-archive]');
  if(!button)return;
- if(!emsUserProfile?.is_admin){alert('Only administrators can delete EMS vehicles.');return;}
+ await loadEmsUserProfile();
+ if(!emsUserProfile?.is_admin){alert('Only administrators can delete EMS vehicles. Signed in as '+(emsSession?.user?.email||'unknown')+'.');return;}
  const c=emsCases.find(x=>String(x.id)===button.dataset.emsArchive);
  if(!c)return;
  const name=c.registration_no||c.vin||c.ems_no;
@@ -1679,4 +1682,26 @@ document.addEventListener('change',event=>{
  if(!input)return;
  const label=document.querySelector('[data-ems-file-name="'+input.dataset.emsAttachment+'"]');
  if(label)label.textContent=input.files?.[0]?.name||'No file selected';
+});
+
+/* Admin correction of an existing EMS job card number. */
+document.getElementById('emsEditJobNumberButton')?.addEventListener('click',async()=>{
+ await loadEmsUserProfile();
+ if(!emsUserProfile?.is_admin){alert('Administrator permission required to edit job numbers.');return;}
+ const c=emsSelectedCase;
+ if(!c)return;
+ const next=prompt('Correct job card number for '+(c.registration_no||c.vin)+':',c.job_card_no||'');
+ if(next===null)return;
+ const value=next.trim();
+ if(!value){alert('Job card number cannot be empty.');return;}
+ if(value===String(c.job_card_no||'').trim())return;
+ if(!confirm('Change job card number from '+(c.job_card_no||'-')+' to '+value+'?'))return;
+ try{
+  const {data,error}=await supabaseClient.from('ems_cases').update({job_card_no:value}).eq('id',c.id).select('id,job_card_no').single();
+  if(error)throw error;
+  if(!data)throw new Error('Update was not confirmed by the database.');
+  await loadEmsCases();
+  openEmsWorkflow(c.id);
+  alert('Job card number updated successfully.');
+ }catch(error){alert('Unable to update job card number: '+error.message);}
 });
