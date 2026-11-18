@@ -23,13 +23,13 @@ WHERE step_no IN (20,36,39,41) AND coalesce(step_status,'Pending') <> 'Completed
 
 -- Release workshop priority automatically when the vehicle reaches Step 22.
 CREATE OR REPLACE FUNCTION public.pdi_release_sales_priority_at_step22()
-RETURNS trigger LANGUAGE plpgsql SET search_path=public,pg_temp AS $
+RETURNS trigger LANGUAGE plpgsql SET search_path=public,pg_temp AS $$
 BEGIN
  IF NEW.current_step IS NOT NULL AND NEW.current_step >= 22 THEN
   NEW.sales_priority_sequence := NULL;
  END IF;
  RETURN NEW;
-END $;
+END $$;
 DROP TRIGGER IF EXISTS pdi_release_sales_priority_step22 ON public.pdi_cases;
 CREATE TRIGGER pdi_release_sales_priority_step22
 BEFORE INSERT OR UPDATE OF current_step,sales_priority_sequence ON public.pdi_cases
